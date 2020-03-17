@@ -1,10 +1,13 @@
 import os
+import sys
 import csv
 import json
 import torch
 import numpy as np
 import torch.optim as optim
-from config import Config
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), "../"))
+from configs import config
 from models import CNN2D
 from model_utils import train, test, validate, EarlyStopping, prepare_experiment_logs
 from mnist import MNIST
@@ -15,7 +18,7 @@ from captum.attr import LayerConductance
 if __name__ == '__main__':
     nact_model = 'CNN2D'
     # get configuration settings
-    config = Config()
+    config = config
     # When True the suggested regularization is not applied
     raw_mnist_only_flag = False
     model_id = config.model_id

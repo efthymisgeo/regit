@@ -1,11 +1,15 @@
-import torch
-import torch.optim as optim
-from torchvision import datasets, transforms
-from model_utils import train, test, validate, EarlyStopping
 import os
+import sys
+import json
+import torch
 import numpy as np
-from torch.utils.data.sampler import SubsetRandomSampler
+import torch.optim as optim
 from torch.utils.data import Sampler
+from torchvision import datasets, transforms
+from torch.utils.data.sampler import SubsetRandomSampler
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), "../"))
+from utils.model_utils import train, test, validate, EarlyStopping
 
 
 class MNIST:
@@ -16,6 +20,7 @@ class MNIST:
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,))
         ])
+        import pdb; pdb.set_trace()
         self.data_dir = self.config.ROOT_DIR + '/data'
 
         self.train_loader, self.val_loader = self.get_train_val_loaders()
