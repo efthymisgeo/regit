@@ -1,0 +1,6 @@
+{
+    "seed": 1,
+    "log_interval": 10,
+    "name": "MNIST",
+    "input_shape": [28, 28]
+}   

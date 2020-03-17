@@ -1,10 +1,13 @@
+import os
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
-from config import Config
-from functions import *
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), "../"))
+from configs.config import Config
+from utils.functions import *
 
 NON_LINEARITIES = {
     'relu': nn.ReLU,

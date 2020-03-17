@@ -1,13 +1,17 @@
+import os 
+import sys
+import json
+import torch
 import torch.optim as optim
-from config import Config
-import os
-from models import CNN2D
-from model_utils import train, test, validate, EarlyStopping, \
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), "../"))
+from utils.model_utils import train, test, validate, EarlyStopping, \
     prepare_experiment_logs, LinearScheduler, MultiplicativeScheduler, \
     StepScheduler, ExponentialScheduler 
-from mnist import MNIST
-import torch
-import json
+from utils.mnist import MNIST
+from configs.config import Config
+from modules.models import CNN2D
+
 #from torch.utils.tensorboard import SummaryWriter
 
 

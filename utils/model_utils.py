@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 import sys
 import os
-from logger import Logger
 from matplotlib import pyplot as plt
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import euclidean_distances
-from config import Config
+sys.path.insert(0, os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), "../"))
+from configs.config import Config
 from captum.attr import LayerConductance
 import gc
 

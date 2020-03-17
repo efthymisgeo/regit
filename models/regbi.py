@@ -7,77 +7,83 @@ import numpy as np
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
-from configs import config
-from models import CNN2D
-from model_utils import train, test, validate, EarlyStopping, prepare_experiment_logs
-from mnist import MNIST
-from end2end import run_training
+from modules.models import CNN2D
+from utils.model_utils import train, test, validate, EarlyStopping, prepare_experiment_logs
+from utils.mnist import MNIST
+from utils.config_loader import print_config
+from utils.opts import load_experiment_options
+from models.end2end import run_training
 from captum.attr import LayerConductance
 
 
 if __name__ == '__main__':
-    nact_model = 'CNN2D'
-    # get configuration settings
-    config = config
-    # When True the suggested regularization is not applied
-    raw_mnist_only_flag = False
-    model_id = config.model_id
+    exp_config = load_experiment_options()
+    model_setup = exp_config["model_opt"]
+    exp_setup = exp_config["exp_opt"]
+    data_setup = exp_config["data_opt"]
+
+    nact_model = exp_setup["model_name"]
+    model_id =  nact_model + "_refactor"
 
     # architectural parameters
-    kernels = config.kernels
-    kernel_size = config.kernel_size
-    stride = config.stride
-    padding = config.padding
-    maxpool = config.maxpool
-    pool_size = config.pool_size
-    fc_layers = config.fc_layers
-    conv_drop = config.conv_drop
-    conv_batch_norm = config.conv_batch_norm
-    activation = config.activation
-    add_dropout = config.add_dropout
-    p_drop = config.p_drop
-    p_conv_drop = config.p_conv_drop
-    input_shape = config.input_shape
-    runs = config.runs
-    device = config.device
+    # kernels = config.kernels
+    # kernel_size = config.kernel_size
+    # stride = config.stride
+    # padding = config.padding
+    # maxpool = config.maxpool
+    # pool_size = config.pool_size
+    # fc_layers = config.fc_layers
+    # conv_drop = config.conv_drop
+    # conv_batch_norm = config.conv_batch_norm
+    # activation = config.activation
+    # add_dropout = config.add_dropout
+    # p_drop = config.p_drop
+    # p_conv_drop = config.p_conv_drop
+    input_shape = data_setup["input_shape"]
+    runs = exp_setup["runs"]
+    device = exp_setup["device"]
 
     print(f"ACTIVE DEVICE(S): {device}")
-    specific_identifier = '_' + nact_model + '_' + str(model_id) \
-                          + '_' + str(kernels[0]) + '-' + str(kernels[1]) \
-                          + '_' + '-'.join(str(i) for i in fc_layers)
+    # specific_identifier = '_' + nact_model + '_' + str(model_id) \
+    #                       + '_' + str(kernels[0]) + '-' + str(kernels[1]) \
+    #                       + '_' + '-'.join(str(i) for i in fc_layers)
 
     # manage experiment logs
-    current_filename = os.path.splitext(__file__)[0]
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    results_dir, results_file = prepare_experiment_logs(current_dir,
-                                                        current_filename,
-                                                        specific_identifier)
+    # current_filename = os.path.splitext(__file__)[0]
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    # results_dir, results_file = prepare_experiment_logs(current_dir,
+    #                                                     current_filename,
+    #                                                     specific_identifier)
 
     print("################## Regularization Experiment #####################")
     print("========================= Parameters =============================")
-    print(f"~~~~~~~  p_drop {config.p_drop}      runs {config.runs} ~~~~~~~~~")
+    print_config(model_setup)
 
     # dataloaders
-    mnist = MNIST(config)
+    print("======================= Dataset ==================================")
+    mnist = MNIST(data_setup, exp_setup)
     train_loader, val_loader = mnist.get_train_val_loaders()
     test_loader = mnist.get_test_loader()
+    print_config(data_setup)
 
     # experimental setup parameters
-    regularization = config.regularization
-    importance = config.importance  # True to use importance
-    use_drop_schedule = config.use_drop_schedule  # True to use scheduler
-    mixout = config.mixout
-    plain_drop_flag = config.plain_dropout_flag
-    custom_scheduler = config.prob_scheduler
-    gamma = config.gamma
-    
+    print("==================Experimental Parameters=========================")
+    regularization = exp_setup["regularization"]
+    importance = exp_setup["importance"]  # True to use importance
+    use_drop_schedule = True if exp_setup["use_drop_schedule"] is not None else False  # True to use scheduler
+    mixout = exp_setup["mixout"]
+    plain_drop_flag = exp_setup["plain_drop"]
+    custom_scheduler = exp_setup["use_drop_schedule"]["prob_scheduler"]
+    gamma = exp_setup["use_drop_schedule"]["gamma"]
+    print_config(exp_setup)
 
     # accumulate accuracies per run
     max_raw_acc = 0
     raw_acc_dict = []
     acc_list = []
 
-    print(f"Regularization is {regularization} and Dropout is {config.add_dropout}")
+    cnn_setup = model_setup["CNN2D"]
+    fc_setup = model_setup["FC"]
 
     for i in range(runs):
         print("================== RUN {} ==================".format(i))
@@ -85,26 +91,26 @@ if __name__ == '__main__':
         
         # define model
         model = CNN2D(input_shape=input_shape,
-                      kernels=kernels,
-                      kernel_size=kernel_size,
-                      stride=stride,
-                      padding=padding,
-                      maxpool=maxpool,
-                      pool_size=pool_size,
-                      conv_drop=conv_drop,
-                      p_conv_drop=p_conv_drop,
-                      conv_batch_norm=conv_batch_norm,
+                      kernels=cnn_setup["kernels"],
+                      kernel_size=cnn_setup["kernel_size"],
+                      stride=cnn_setup["stride"],
+                      padding=cnn_setup["padding"],
+                      maxpool=cnn_setup["maxpool"],
+                      pool_size=cnn_setup["pool_size"],
+                      conv_drop=cnn_setup["conv_drop"],
+                      p_conv_drop=cnn_setup["p_conv_drop"],
+                      conv_batch_norm=cnn_setup["conv_batch_norm"],
                       regularization=regularization,
-                      activation=activation,
-                      fc_layers=fc_layers,
-                      add_dropout=add_dropout,
-                      p_drop=p_drop,
+                      activation=fc_setup["activation"],
+                      fc_layers=fc_setup["fc_layers"],
+                      add_dropout=fc_setup["fc_drop"],
+                      p_drop=fc_setup["p_drop"],
                       device=device).to(device)
 
         if importance:
             attributor_list = \
                 [LayerConductance(model, model.fc[i]) 
-                    for i in range(len(config.fc_layers)-1)]
+                    for i in range(len(fc_setup["fc_layers"])-1)]
         else:
             attributor_list = None
         
@@ -123,6 +129,7 @@ if __name__ == '__main__':
         #                                     map_location=config.device))
         
         # training
+        import pdb; pdb.set_trace()
         raw_accuracy = run_training(model,
                                     config,
                                     train_loader,
