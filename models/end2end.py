@@ -6,7 +6,7 @@ import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from utils.model_utils import train, test, validate, EarlyStopping, \
-    prepare_experiment_logs, LinearScheduler, MultiplicativeScheduler, \
+    LinearScheduler, MultiplicativeScheduler, \
     StepScheduler, ExponentialScheduler 
 from utils.mnist import MNIST
 from configs.config import Config
@@ -15,59 +15,83 @@ from modules.models import CNN2D
 #from torch.utils.tensorboard import SummaryWriter
 
 
-def run_training(model, config, train_loader, val_loader, test_loader, attributor):
-    """add docstrings
+def run_training(model,
+                 train_loader,
+                 val_loader,
+                 test_loader,
+                 experiment_setup,
+                 model_setup,
+                 data_setup,
+                 attributor=[],
+                 ckpt_path="checkpoints/MNIST"):
+    """ # TODO add docstrings
     """
+    optim_setup = experiment_setup["optimization"]
+    print(f"Model {experiment_setup['model_name']} with "
+          f"{optim_setup['optimizer']} optimizer and "
+          f"{optim_setup['lr']} learning rate")
     
-    print(f"Model {config.use_model} with {config.optimizer} optimizer and"
-          f"{config.lr} learning rate")
-    
-    if config.optimizer is "SGD":
+    if optim_setup["optimizer"] == "SGD":
         optimizer = optim.SGD(model.parameters(),
-                              lr=config.lr,
-                              momentum=config.momentum)
-    elif optimizer_id is "Adam":
-        optimizer = optim.Adam(model.parameters(), lr=config.lr)
+                              lr=optim_setup["lr"],
+                              momentum=optim_setup["momentum"])
+    elif optim_setup["optimizer"] == "Adam":
+        optimizer = optim.Adam(model.parameters(),
+                               lr=optim_setup["lr"])
     else:
-        raise ValueError("Not a valid optimizer")
+        raise NotImplementedError("Not a valid optimizer")
 
-    if config.prob_scheduler is not None:
+    use_optim_scheduler = False
+    if use_optim_scheduler:
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                            'min',
+                                                            factor=0.1,
+                                                            patience=2,
+                                                            verbose=True)
+
+    drop_schedule_setup = experiment_setup["use_drop_schedule"]
+    if drop_schedule_setup != {}:
+        p_drop = drop_schedule_setup["p_drop"]
         epoch_steps = len(train_loader)  # n_steps the optimizer is being used 
-        if config.prob_scheduler is "Lin":
+        if drop_schedule_setup["prob_scheduler"] is "Lin":
             # this setup saturates at epoch 5
             saturation_epoch = 5
             p_schedule = \
-                LinearScheduler([0.0, config.p_drop], saturation_epoch * epoch_steps)
-        elif config.prob_scheduler is "Mul":
+                LinearScheduler([0.0, p_drop],
+                                saturation_epoch * epoch_steps)
+        elif drop_schedule_setup["prob_scheduler"] == "Mul":
             saturation_epoch = 8
             p_schedule = \
-                MultiplicativeScheduler([0.0, config.p_drop],
+                MultiplicativeScheduler([0.0, p_drop],
                                         saturation_epoch * epoch_steps)
-        elif config.prob_scheduler is "Exp":
+        elif drop_schedule_setup["prob_scheduler"] == "Exp":
             print("##########################################################")
-            print(f"Exponential Scheduler will be used with gamma {config.gamma}")
+            print("Exponential Scheduler will be used with gamma "
+                  f"{drop_schedule_setup['gamma']}")
             print("##########################################################")
             saturation_epoch = 50
             p_schedule = \
-                ExponentialScheduler([0.0, config.p_drop],
+                ExponentialScheduler([0.0, p_drop],
                                      saturation_epoch * epoch_steps,
-                                     config.gamma)
-        elif config.prob_scheduler is "Step":
+                                     drop_schedule_setup["gamma"])
+        elif drop_schedule_setup["prob_scheduler"] == "Step":
             # TODO needs to be updated
             pass
         else:
-            raise ValueError(f"{config.prob_scheduler} is not a valid scheduler."
-                             "Refusing to proceed.")
+            raise NotImplementedError(f"{drop_schedule_setup['prob_scheduler']}"
+                                      "is not a valid scheduler. " 
+                                      "Refusing to proceed.")
     else:
         print("No custom scheduler is used. Proceeding without any.\n"
               "The dropout probability will be fixed from now on.")
         p_schedule = None
+        p_drop = experiment_setup["p_drop"]
 
     # early stopping
-    earlystop = EarlyStopping(patience=config.patience,
+    earlystop = EarlyStopping(patience=experiment_setup["patience"],
                               verbose=False,
-                              config=config,
-                              model_id=config.model_id)
+                              save_model=experiment_setup["save_model"],
+                              ckpt_path=ckpt_path) # needs to be model and run specific
     
     # add tensorboard functionality
     # create a summary writer using the specified folder name
@@ -75,18 +99,17 @@ def run_training(model, config, train_loader, val_loader, test_loader, attributo
     writer=None
     
     # training
-    for epoch in range(1, config.epochs + 1):
-        print("Epoch: [{}/{}]".format(epoch, config.epochs))
+    for epoch in range(1, experiment_setup["epochs"] + 1):
+        print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
         train_loss, train_acc = train(model,
                                       train_loader,
                                       optimizer,
                                       epoch,
                                       writer=writer,
                                       attributor=attributor,
-                                      drop_scheduler=config.prob_scheduler,
-                                      max_p_drop=config.p_drop,
-                                      mix_rates=config.mixout,
-                                      plain_drop_flag=config.plain_dropout_flag,
+                                      max_p_drop=p_drop,
+                                      mix_rates=experiment_setup["mixout"],
+                                      plain_drop_flag=experiment_setup["plain_drop"],
                                       p_schedule=p_schedule)
         
         #######################################################################
@@ -103,8 +126,14 @@ def run_training(model, config, train_loader, val_loader, test_loader, attributo
         #######################################################################
 
         #import pdb; pdb.set_trace()
-        val_loss, val_acc = validate(config, model, val_loader,
-                                     epoch=epoch, writer=writer)
+        val_loss, val_acc = validate(model,
+                                     val_loader,
+                                     epoch=epoch,
+                                     writer=writer)
+
+        if use_optim_scheduler:
+            lr_scheduler.step(val_loss)
+
         #writer.add_scalars("loss_curves", {"train": train_loss,
         #                                   "val": val_loss}, epoch-1)
         #writer.add_scalars("accuracy_curve", {"train": train_acc,
@@ -114,32 +143,35 @@ def run_training(model, config, train_loader, val_loader, test_loader, attributo
             print("Early Stopping Training")
             break
         if epoch % 5 == 0:
-            test(config, model, test_loader)
+            test(model, test_loader)
     print("finished training")
     print("Model Performance")
     
     #writer.close()
 
-    saved_model = CNN2D(input_shape=config.input_shape,
-                        kernels=config.kernels,
-                        kernel_size=config.kernel_size,
-                        stride=config.stride,
-                        padding=config.padding,
-                        maxpool=config.maxpool,
-                        pool_size=config.pool_size,
-                        conv_drop=config.conv_drop,
-                        conv_batch_norm=config.conv_batch_norm,
-                        regularization=config.regularization,
-                        activation=config.activation,
-                        fc_layers=config.fc_layers,
-                        add_dropout=config.add_dropout,
-                        p_drop=config.p_drop,
-                        device=config.device).to(config.device)
+    cnn_setup = model_setup["CNN2D"]
+    fc_setup = model_setup["FC"]
+
+    saved_model = CNN2D(input_shape=data_setup["input_shape"],
+                        kernels=cnn_setup["kernels"],
+                        kernel_size=cnn_setup["kernel_size"],
+                        stride=cnn_setup["stride"],
+                        padding=cnn_setup["padding"],
+                        maxpool=cnn_setup["maxpool"],
+                        pool_size=cnn_setup["pool_size"],
+                        conv_drop=cnn_setup["conv_drop"],
+                        p_conv_drop=cnn_setup["p_conv_drop"],
+                        conv_batch_norm=cnn_setup["conv_batch_norm"],
+                        regularization=experiment_setup["regularization"],
+                        activation=fc_setup["activation"],
+                        fc_layers=fc_setup["fc_layers"],
+                        add_dropout=fc_setup["fc_drop"],
+                        p_drop=fc_setup["p_drop"],
+                        device=model.device).to(model.device)
         
-    saved_model.load_state_dict(torch.load(config.saved_model_path,
-                                           map_location='cpu'))
-    saved_model = saved_model.to(config.device)
-    acc, _ = test(config, saved_model, test_loader)
+    saved_model.load_state_dict(torch.load(ckpt_path + ".pt", map_location='cpu'))
+    saved_model = saved_model.to(model.device)
+    acc, _ = test(saved_model, test_loader)
     return acc
 
 

@@ -293,6 +293,14 @@ class CNN2D(nn.Module):
                 self.drop_masks.append(temp_mask)
             else:
                 raise ValueError("Not implemented trick")
+            
+            if i == 0:
+                tmp = np.nonzero(self.drop_masks[i].cpu().detach().numpy())[0]
+                for k in tmp:
+                    try:
+                        self.fc_1_idx[str(int(k))] += 1
+                    except:
+                        print(k)
 
     def update_mask(self, importance=None, p_drop=None, mix_rates=False):
         """

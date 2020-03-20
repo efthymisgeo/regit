@@ -181,7 +181,10 @@ def get_tensors(only_cuda=False, omit_objs=[]):
 
 
 
-def train(model, train_loader, optimizer, epoch,
+def train(model,
+          train_loader,
+          optimizer,
+          epoch,
           writer=None,
           attributor=None,
           drop_scheduler=True,
@@ -202,12 +205,12 @@ def train(model, train_loader, optimizer, epoch,
             Tensorboard logging
         attributor (list): list of captum.attr instances which is used for
             attributing the importance of a neuron  
-        drop_scheduler (bool):
         max_p_drop (float): value at which the drop prob saturates
         mix_rates (bool): handles the use of mixed drop rates
         plain_drop (bool): used for traditional dropour setup
         p_schedule (Scheduler): the scheduler instance which is used
-    
+        device (str): "cpu" or "cuda"
+
     Returns:
         train_loss():
         train_acc():
@@ -251,7 +254,7 @@ def train(model, train_loader, optimizer, epoch,
         print("Using custom scheduler")
         if mix_rates:
             # p_drop = (plain_drop, intel_drop)
-            p_drop = (config.p_drop - p_drop, p_drop)
+            p_drop = (max_p_drop - p_drop, p_drop)
             print(f"added mixed rates --{p_drop[0]}: random-- & --{p_drop[1]}: intel--")
 
     
@@ -397,13 +400,16 @@ def train(model, train_loader, optimizer, epoch,
     return train_loss, train_acc
 
 
-def validate(config, model, val_loader, epoch=None, writer=None):
+def validate(model,
+             val_loader,
+             epoch=None,
+             writer=None):
     model.eval()
     val_loss = 0
     correct = 0
     with torch.no_grad():
         for data, target in val_loader:
-            data, target = data.to(config.device), target.to(config.device)
+            data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
             val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
@@ -423,7 +429,7 @@ def validate(config, model, val_loader, epoch=None, writer=None):
     return val_loss, accuracy
 
 
-def test(config, model, test_loader):
+def test(model, test_loader):
     model.eval()
     model_name = model.__class__.__name__
     test_loss = 0
@@ -431,7 +437,7 @@ def test(config, model, test_loader):
     misclassified_batch = []
     with torch.no_grad():
         for data, target in test_loader:
-            data, target = data.to(config.device), target.to(config.device)
+            data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
@@ -452,242 +458,30 @@ def test(config, model, test_loader):
     return accuracy, misclassified
 
 
-def normalize(df):
-    return (df - df.min()) / (df.max() - df.min())
-
-
-def quantize(df, act_threshold, quant_limits):
-    x = df.copy().values
-    quant_limits.insert(0, act_threshold)
-    n_quants = len(quant_limits)
-    for i in range(1, n_quants):
-        x[(x > quant_limits[i-1]) & (x <= quant_limits[i]) & (x != (i-1)/n_quants)] = i / n_quants
-    x[(x > quant_limits[i]) & (x != i/n_quants)] = (i+1) / n_quants
-    return pd.DataFrame(x)
-
-
-def convert_to_binary(df, threshold):
-    x = df.copy().values
-    x[x > threshold] = 1
-    x[x <= threshold] = 0
-    return pd.DataFrame(x)
-
-
-def get_normalized_cont_data(train_data_file, test_data_file, n_features, act_threshold):
-    df_train = pd.read_csv(train_data_file, header=None)
-    df_test = pd.read_csv(test_data_file, header=None)
-
-    y_train = df_train.iloc[:, n_features]
-    X_train = df_train.iloc[:, :n_features]
-    y_test = df_test.iloc[:, n_features]
-    X_test = df_test.iloc[:, :n_features]
-
-    # apply ReLU on the continuous activations data
-    # X_train_relu = X_train.where(X_train > 0, 0)
-    # X_test_relu = X_test.where(X_test > 0, 0)
-
-    # normalize data - convert values to the range (0,1)
-    # X_train_n = normalize(X_train_relu)
-    # X_test_n = normalize(X_test_relu)
-
-    X_train_n = normalize(X_train)
-    X_test_n = normalize(X_test)
-
-    # apply a larger ReLU threshold: act_threshold
-    X_train_relu_act = X_train_n.where(X_train_n > act_threshold, 0)
-    X_test_relu_act = X_test_n.where(X_test_n > act_threshold, 0)
-
-    return X_train_relu_act, X_test_relu_act, y_train, y_test
-
-
-def convert_data_to_binary(train_data_file, test_data_file, n_features, act_threshold):
-    X_train_relu_act, X_test_relu_act, y_train, y_test = get_normalized_cont_data(train_data_file, test_data_file, n_features, act_threshold)
-
-    # convert data to multihot/binary vectors
-    X_train_b_act = convert_to_binary(X_train_relu_act, 0)
-    X_test_b_act = convert_to_binary(X_test_relu_act, 0)
-
-    return X_train_b_act, X_test_b_act, y_train, y_test
-
-
-def convert_data_to_quantized(train_data_file, test_data_file, n_features, act_threshold, quant_limits):
-    X_train_relu_act, X_test_relu_act, y_train, y_test = get_normalized_cont_data(train_data_file, test_data_file, n_features, act_threshold)
-
-    # quantize data
-    X_train_q = quantize(X_train_relu_act, act_threshold, quant_limits)
-    X_test_q = quantize(X_test_relu_act, act_threshold, quant_limits)
-
-    return X_train_q, X_test_q, y_train, y_test
-
-
-def prepare_experiment_logs(current_dir, current_filename, specific_identifier):
-    # create results dir if doesn't exist
-    results_dir = current_dir + '/results/' + current_filename
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
-    results_file = results_dir + '/results' + specific_identifier + '.txt'
-    # escape overwriting the same file by creating a new one
-    i = 1
-    while os.path.exists(results_file):
-        specific_identifier_ = specific_identifier + '_' + str(i)
-        results_file = results_dir + '/results' + specific_identifier_ + '.txt'
-        i += 1
-
-    # redirect to results file
-    sys.stdout = Logger(results_file)
-
-    return results_dir, results_file
-
-
-def get_dataframes_by_option(option, train_data_file, test_data_file, config, act_threshold=0, quant_limits=None):
-    n_features = config.n_acts
-    if option == 'binary':
-        X_train, X_test, y_train, y_test = convert_data_to_binary(train_data_file, test_data_file, n_features, act_threshold)
-    elif option == 'quantized':
-        X_train, X_test, y_train, y_test = convert_data_to_quantized(train_data_file, test_data_file, n_features, act_threshold, quant_limits)
-    elif option == 'cont_normalized_threshold':
-        X_train, X_test, y_train, y_test = get_normalized_cont_data(train_data_file, test_data_file, n_features, act_threshold)
-    elif option == 'continuous_raw':
-        df_train = pd.read_csv(train_data_file, header=None)
-        df_test = pd.read_csv(test_data_file, header=None)
-        y_train = df_train.iloc[:, n_features]
-        X_train = df_train.iloc[:, :n_features]
-        y_test = df_test.iloc[:, n_features]
-        X_test = df_test.iloc[:, :n_features]
-    return X_train, X_test, y_train, y_test
-
-
-def get_binary_representatives(train_data_file, test_data_file, n_features, act_threshold):
-    nact_representative = get_representatives(train_data_file, test_data_file, n_features, act_threshold)
-    # convert each representative to a binary vector
-    nact_representative_b = {}
-
-    for digit in range(10):
-        nact_representative_b[digit] = convert_to_binary(nact_representative[digit], 0.5)
-
-    return nact_representative_b
-
-
-def get_representatives(train_data_file, test_data_file, n_features, act_threshold):
-    # convert data to binary vectors
-    X_train, X_test, y_train, y_test = convert_data_to_binary(train_data_file, test_data_file, n_features, act_threshold)
-    # combine data to dataframe
-    nact_data = pd.concat([X_train, y_train], axis=1)
-
-    # create a dict to store the mean vector of each class
-    nact_representative = {}
-    for digit in range(10):
-        nact_representative[digit] = nact_data[nact_data[n_features] == digit].iloc[:, :n_features].mean()
-
-    return nact_representative
-
-    # convert each representative to a binary vector
-    nact_representative_b = {}
-
-    for digit in range(10):
-        nact_representative_b[digit] = convert_to_binary(nact_representative[digit], 0.5)
-
-    return nact_representative_b
-
-
-def visualize_activations(config, results_dir, train_data_file, test_data_file, act_threshold):
-    # TODO implementation for more than 2 hidden layers
-    if len(config.layers) > 3:
-        print('Not yet implemented for more than 2 hidden layers')
-        sys.exit()
-
-    height = max(config.layers) + 20
-    width = 80
-    visualization = np.zeros((height, width))
-
-    n_features = config.n_acts
-    nact_representative_b = get_binary_representatives(train_data_file, test_data_file, n_features, act_threshold)
-
-    step = 0
-    for digit in range(10):
-        visualization[10:(config.layers[0]+10), 5 + digit + step] = nact_representative_b[digit].iloc[
-                                                                    0:config.layers[0]].values.flatten() * (digit + 1)
-        visualization[10:(config.layers[1]+10), 30 + digit + step] = nact_representative_b[digit].iloc[
-                                                                config.layers[0]:(config.layers[0] + config.layers[1])
-                                                                ].values.flatten() * (digit + 1)
-        visualization[(height//2 - 5):(height//2 + 5), 55 + digit + step] = nact_representative_b[digit].iloc[
-                                                                          (n_features-10):n_features
-                                                                          ].values.flatten() * (digit + 1)
-        step += 1
-
-    plt.figure(figsize=(18, round(18*height/width)))
-    plt.imshow(visualization, cmap='gist_stern')
-    plt.gca().set_title('Digits Activations')
-
-    colorbar = plt.colorbar(boundaries=np.arange(0.5, 11.5, 1), orientation='horizontal', fraction=0.082, pad=0.0)
-    # colorbar labels
-    labels = np.arange(0, 10, 1)
-    loc = labels + 1
-    colorbar.set_ticks(loc)
-    colorbar.set_ticklabels(labels)
-
-    vis_file = results_dir + '/digits_activations_' + str(n_features) + '.png'
-    plt.savefig(vis_file)
-    print('Visualization saved at: {}'.format(vis_file))
-
-
-class EuclideanClassifier(BaseEstimator, ClassifierMixin):
-
-    def __init__(self, train_data_file, test_data_file, n_acts, act_threshold):
-        self.train_data_file = train_data_file
-        self.test_data_file = test_data_file
-        self.n_acts = n_acts
-        self.act_threshold = act_threshold
-        self.representatives = None
-        self.X_mean = None
-
-    def fit(self, ignore_last_layer=False):
-        self.representatives = get_representatives(self.train_data_file, self.test_data_file, self.n_acts, self.act_threshold)
-        if ignore_last_layer:
-            for i in range(10):
-                self.representatives[i] = self.representatives[i][:self.n_acts-10]
-        self.X_mean = []
-        for i in range(10):
-            self.X_mean.append(self.representatives[i])
-
-        self.X_mean = np.array(self.X_mean)
-        return self
-
-    def predict(self, X):
-        closest = np.argmin(euclidean_distances(X, self.X_mean), axis=1)
-        return closest
-
-    def score(self, X, y):
-        y_ = self.predict(X)
-        return np.sum(y == y_) / y.shape[0]
-
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
 
-    def __init__(self, patience=7, verbose=False, config=None, delta=0, model_id=None):
+    def __init__(self, patience=7, verbose=False, save_model=True, delta=0, ckpt_path=None):
         """
         Args:
-            patience (int): How long to wait after last time validation loss improved.
-                            Default: 7
-            verbose (bool): If True, prints a message for each validation loss improvement.
-                            Default: False
-            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
-                            Default: 0
+            patience (int): How long to wait after last time validation 
+                loss improved. Default: 7
+            verbose (bool): If True, prints a message for each validation 
+                loss improvement. Default: False
+            delta (float): Minimum change in the monitored quantity to qualify 
+                as an improvement. Default: 0
+            ckpt_path (str): the path under which the model will be stored
         """
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
+        self.save_model = save_model
         self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
-        self.model_id = model_id
-        if config == None:
-            self.config = Config()
-        else:
-            self.config = config
+        self.ckpt_path = ckpt_path
 
     def __call__(self, val_loss, model):
 
@@ -709,10 +503,13 @@ class EarlyStopping:
     def save_checkpoint(self, val_loss, model):
         '''Saves model when validation loss decrease.'''
         if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+            print("Validation loss decreased "
+                  f"{self.val_loss_min:.6f} --> {val_loss:.6f}." 
+                  "Saving model ...")
 
         # save model
-        if self.config.save_model:
-            torch.save(model.state_dict(), self.config.saved_model_path)
+        if self.save_model:
+            torch.save(model.state_dict(),
+                       self.ckpt_path + ".pt")
 
         self.val_loss_min = val_loss
