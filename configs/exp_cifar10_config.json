@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "smartdrop_101",
+    "experiment_id": "mixout_0.0001_0.000005",
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
     "regularization": true,
@@ -8,9 +8,9 @@
     "use_drop_schedule": {
         "prob_scheduler": "Exp",
         "p_drop": 0.5,
-        "gamma": 0.00005
+        "gamma": 0.000005
     },
-    "mixout": false,
+    "mixout": true,
     "runs": 5,
     "n_steps": 25,
     "batch_size": 64,
@@ -22,7 +22,7 @@
     "optimization":
     {
         "optimizer": "SGD",
-        "lr": 0.001,
+        "lr": 0.0001,
         "momentum": 0.9
     },
     "use_cuda": true,

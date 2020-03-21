@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "refactoring",
+    "experiment_id": "smart_0.0001_0.01",
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
     "regularization": true,

@@ -1,0 +1,6 @@
+data/MNIST/*
+data/CIFAR10/*
+experiments/MNIST/*
+experiments/CIFAR10/*
+checkpoints/MNIST/*
+checkpoints/CIFAR10/*
