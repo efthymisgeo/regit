@@ -1,0 +1,34 @@
+{
+    "model_name": "CNN2D",
+    "experiment_id": "smart_0.0001_0.01",
+    "checkpoint_folder": "checkpoints",
+    "experiment_folder": "experiments",
+    "regularization": true,
+    "importance": true,
+    "use_drop_schedule":
+    {
+        "prob_scheduler": "Exp",
+        "gamma": 0.0001,
+        "p_drop": 0.5
+    },
+    "mixout": false,
+    "runs": 5,
+    "n_steps": 25,
+    "batch_size": 64,
+    "test_batch_size": 1000,
+    "valid_size": 0.25,
+    "patience": 9,
+    "epochs": 40,
+    "add_dropout": false,
+    "weught_decay": 0.0,
+    "optimization":
+    {
+        "optimizer": "SGD",
+        "lr": 0.01,
+        "momentum": 0.9
+    },
+    "use_cuda": true,
+    "cuda_device": "cuda:1",
+    "save_model": true,
+    "plain_drop": false
+}

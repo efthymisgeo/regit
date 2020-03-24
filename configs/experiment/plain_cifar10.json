@@ -1,0 +1,29 @@
+{
+    "model_name": "CNN2D",
+    "experiment_id": "_plain_cifar_0.0001",
+    "checkpoint_folder": "checkpoints",
+    "experiment_folder": "experiments",
+    "regularization": false,
+    "importance": false,
+    "use_drop_schedule": {},
+    "mixout": false,
+    "runs": 10,
+    "n_steps": 25,
+    "batch_size": 64,
+    "test_batch_size": 1000,
+    "valid_size": 0.25,
+    "patience": 15,
+    "epochs": 500,
+    "weught_decay": 0.0,
+    "optimization":
+    {
+        "optimizer": "SGD",
+        "lr": 0.0001,
+        "momentum": 0.9
+    },
+    "use_cuda": true,
+    "cuda_device": "cuda:1",
+    "save_model": true,
+    "plain_drop": false,
+    "p_drop": 0.5
+}
