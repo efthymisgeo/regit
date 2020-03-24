@@ -1,6 +1,0 @@
-{
-    "seed": 10,
-    "log_interval": 10,
-    "name": "CIFAR10",
-    "input_shape": [3, 32, 32]
-}   

@@ -122,6 +122,11 @@ if __name__ == '__main__':
     cnn_setup = model_setup["CNN2D"]
     fc_setup = model_setup["FC"]
 
+    save_path = os.path.join(exp_setup["experiment_folder"],
+                             data_setup["name"],
+                             exp_setup["experiment_id"])
+    
+
     for i in range(runs):
         print("================== RUN {} ==================".format(i))
         print("--------- Training CNN-FC is about to take off ---------")
@@ -167,16 +172,17 @@ if __name__ == '__main__':
         
         # training
         run_id = os.path.join(checkpoint_path, experiment_id + str(i)) 
-        raw_accuracy = run_training(model,
-                                    train_loader,
-                                    val_loader,
-                                    test_loader,
-                                    exp_setup,
-                                    model_setup,
-                                    data_setup,
-                                    attributor=attributor_list,
-                                    ckpt_path=run_id)
+        train_summary = run_training(model,
+                                     train_loader,
+                                     val_loader,
+                                     test_loader,
+                                     exp_setup,
+                                     model_setup,
+                                     data_setup,
+                                     attributor=attributor_list,
+                                     ckpt_path=run_id)
         
+        raw_accuracy = train_summary["test_acc"]
         acc_list.append(raw_accuracy)
 
         if raw_accuracy > max_raw_acc:
@@ -191,17 +197,21 @@ if __name__ == '__main__':
 
         print("Maximum accuracy for regularized raw model is: {}"
               .format(max_raw_acc))
+        
+        try:
+            os.mkdir(save_path)
+        except OSError:
+            print ("Creation of the directory %s failed" % save_path)
+        else:
+            print ("Successfully created the directory %s " % save_path)
+            
+        summary_json_name = os.path.join(save_path,
+                                         experiment_id + str(i) + ".json")
+        
+        with open (summary_json_name, "w") as fd:
+            json.dump(train_summary, fd)
+
     
-    save_path = os.path.join(exp_setup["experiment_folder"],
-                             data_setup["name"],
-                             exp_setup["experiment_id"])
-    
-    try:
-        os.mkdir(save_path)
-    except OSError:
-        print ("Creation of the directory %s failed" % save_path)
-    else:
-        print ("Successfully created the directory %s " % save_path)
     
     acc_csv_name = experiment_id + "all_accuracy.csv"
     

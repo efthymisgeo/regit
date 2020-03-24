@@ -185,6 +185,7 @@ def train(model,
           train_loader,
           optimizer,
           epoch,
+          regularization=True,
           writer=None,
           attributor=None,
           drop_scheduler=True,
@@ -212,14 +213,16 @@ def train(model,
         device (str): "cpu" or "cuda"
 
     Returns:
-        train_loss():
-        train_acc():
+        train_loss (float): list of train losses per epoch
+        train_acc (float): list of train accuracies per epoch
+        prob_value (float): list of dropout probabilities
     """
           
     model.train()
     train_loss = 0
     correct = 0
     step = 0
+    prob_value = 0
     #attributor = None  # hach to dismiss previous values
 
     ###########################################################################
@@ -262,6 +265,13 @@ def train(model,
         print("Enabling plain dropout")
         p_drop = max_p_drop
     
+    if not regularization:
+        # overwrite existing values for proper use
+        p_drop = 0.0
+        mix_rates = False
+        p_schedule = None
+        attributor = None
+
     model.set_dropout(p_drop, mix_rates)
     print(f"Model is trained with p_drop {model.p_drop}")
 
@@ -289,7 +299,6 @@ def train(model,
 
             model.set_dropout(p_drop, mix_rates)
 
-
         if attributor is None:
             # plain dropout case
             # model.init_mask(p_drop=p_drop)
@@ -297,9 +306,8 @@ def train(model,
                 if batch_idx == 0: print(f"Model trained with p={p_drop}")
                 model.update_mask(p_drop=p_drop)
             else:
-                if batch_idx == 0: print(f"zero dropout value")
+                if batch_idx == 0: print(f"zero dropout value. no drop applied")
                 model.init_mask(trick="ones")
-                #print("no dropout is applied")
         elif attributor is not None:
             # trick to avoid calculating importances when dropout prob is zero
             if plain_drop_flag:
@@ -346,8 +354,8 @@ def train(model,
         # the following line should be uncommented in case
         # activations are desired
         #_, output = model(data)
-        if data.shape[0] != 64:
-            print(data.shape)
+        #if data.shape[0] != 64:
+        #    print(data.shape)
         output = model(data)
         
         optimizer.zero_grad()
@@ -361,14 +369,15 @@ def train(model,
         loss.backward()
         optimizer.step()
 
-        
+        prob_value = p_drop
+
         #######################################################################
         ############ TENSORBOARD LOGGING    ###################################
         #######################################################################
         # this usually is ommited in the train loop
         # however we track it for debugging purposes
-        #pred = output.argmax(dim=1, keepdim=True)
-        #correct += pred.eq(target.view_as(pred)).sum().item()
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
         ##import pdb; pdb.set_trace()
         #if (batch_idx+1) % 500 == 0 and (epoch+1) % 4 == 0:
         #    for tag, value in model.named_parameters():
@@ -393,11 +402,10 @@ def train(model,
     train_loss /= len(train_loader)
     train_acc = 100. * correct / len(train_loader.sampler)
 
-
     #writer.add_scalars("loss_curves", {"train": train_loss}, epoch-1)
     #writer.add_scalars("accuracy_curve", {"train": train_acc}, epoch-1)
     
-    return train_loss, train_acc
+    return train_loss, train_acc, prob_value
 
 
 def validate(model,
@@ -412,7 +420,7 @@ def validate(model,
             data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
-            val_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            val_loss += F.nll_loss(output, target).item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -440,12 +448,12 @@ def test(model, test_loader):
             data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            test_loss += F.nll_loss(output, target).item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
             misclassified_batch.append((target.view_as(pred) - pred).clone().cpu().detach().numpy())
 
-            test_loss /= len(test_loader.dataset)
+        test_loss /= len(test_loader)
 
         accuracy = 100. * correct / len(test_loader.dataset)
         print('{} at Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)'.format(
@@ -455,7 +463,7 @@ def test(model, test_loader):
     for misclassified_b in misclassified_batch[1:]:
         misclassified = np.append(misclassified, misclassified_b, axis=0)
 
-    return accuracy, misclassified
+    return test_loss, accuracy, misclassified
 
 
 
@@ -482,10 +490,12 @@ class EarlyStopping:
         self.val_loss_min = np.Inf
         self.delta = delta
         self.ckpt_path = ckpt_path
+        self.best_epoch_id = 0
 
     def __call__(self, val_loss, model):
 
         score = -val_loss
+        self.best_epoch_id += 1
 
         if self.best_score is None:
             self.best_score = score
@@ -495,6 +505,7 @@ class EarlyStopping:
             print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
+                self.best_epoch_id = self.best_epoch_id - self.patience
         else:
             self.best_score = score
             self.save_checkpoint(val_loss, model)

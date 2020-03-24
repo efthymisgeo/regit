@@ -26,6 +26,7 @@ def run_training(model,
                  ckpt_path="checkpoints/MNIST"):
     """ # TODO add docstrings
     """
+    regularization = experiment_setup["regularization"]
     optim_setup = experiment_setup["optimization"]
     print(f"Model {experiment_setup['model_name']} with "
           f"{optim_setup['optimizer']} optimizer and "
@@ -55,7 +56,7 @@ def run_training(model,
         epoch_steps = len(train_loader)  # n_steps the optimizer is being used 
         if drop_schedule_setup["prob_scheduler"] is "Lin":
             # this setup saturates at epoch 5
-            saturation_epoch = 5
+            saturation_epoch = drop_schedule_setup["saturation_epoch"]
             p_schedule = \
                 LinearScheduler([0.0, p_drop],
                                 saturation_epoch * epoch_steps)
@@ -69,7 +70,7 @@ def run_training(model,
             print("Exponential Scheduler will be used with gamma "
                   f"{drop_schedule_setup['gamma']}")
             print("##########################################################")
-            saturation_epoch = 50
+            saturation_epoch = 100
             p_schedule = \
                 ExponentialScheduler([0.0, p_drop],
                                      saturation_epoch * epoch_steps,
@@ -97,21 +98,35 @@ def run_training(model,
     # create a summary writer using the specified folder name
     #writer = SummaryWriter("compare_experiments/" + "bindrop/" + config.model_id)
     writer=None
+
+    test_freq = 1 # 3 for MNIST 5 for CIFAR
+    loss_dict = {"train": [], "val": [], "test": []}
+    acc_dict = {"train": [], "val": [], "test": []}
+    gold_epoch_id = -1  # best epoch id
+    p_drop_list = []  #  p_drop along epochs
+    lr_list = []  # lr along epochs
+    switches = []  # number of switches in a given layer
     
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
         print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
-        train_loss, train_acc = train(model,
-                                      train_loader,
-                                      optimizer,
-                                      epoch,
-                                      writer=writer,
-                                      attributor=attributor,
-                                      max_p_drop=p_drop,
-                                      mix_rates=experiment_setup["mixout"],
-                                      plain_drop_flag=experiment_setup["plain_drop"],
-                                      p_schedule=p_schedule)
+        train_loss, train_acc, p_list = \
+            train(model,
+                  train_loader,
+                  optimizer,
+                  epoch,
+                  regularization=regularization,
+                  writer=writer,
+                  attributor=attributor,
+                  max_p_drop=p_drop,
+                  mix_rates=experiment_setup["mixout"],
+                  plain_drop_flag=experiment_setup["plain_drop"],
+                  p_schedule=p_schedule)
         
+        loss_dict["train"].append(train_loss)
+        acc_dict["train"].append(train_acc)
+        p_drop_list.append(p_list)
+
         #######################################################################
         ###### print frequencies of droping a neuron in the first FC layer
         #######################################################################
@@ -120,9 +135,8 @@ def run_training(model,
 
         n_drops = OrderedDict(sorted(model.fc_1_idx.items(),
                               key=itemgetter(1), reverse=False))
+        switches.append(n_drops)
         
-        print(n_drops)
-
         #######################################################################
 
         #import pdb; pdb.set_trace()
@@ -131,6 +145,9 @@ def run_training(model,
                                      epoch=epoch,
                                      writer=writer)
 
+        loss_dict["val"].append(val_loss)
+        acc_dict["val"].append(val_acc)
+
         if use_optim_scheduler:
             lr_scheduler.step(val_loss)
 
@@ -138,13 +155,18 @@ def run_training(model,
         #                                   "val": val_loss}, epoch-1)
         #writer.add_scalars("accuracy_curve", {"train": train_acc,
         #                                      "val": val_acc}, epoch-1)
+        if epoch % test_freq == 0 or epoch == 1:
+            test_loss, test_acc, _ = test(model, test_loader)
+            loss_dict["test"].append(test_loss)
+            acc_dict["test"].append(test_acc)
+        
         earlystop(val_loss, model)
         if earlystop.early_stop:
+            gold_epoch_id = earlystop.best_epoch_id
             print("Early Stopping Training")
             break
-        if epoch % 5 == 0:
-            test(model, test_loader)
-    print("finished training")
+    
+    print("Finished training")
     print("Model Performance")
     
     #writer.close()
@@ -171,8 +193,16 @@ def run_training(model,
         
     saved_model.load_state_dict(torch.load(ckpt_path + ".pt", map_location='cpu'))
     saved_model = saved_model.to(model.device)
-    acc, _ = test(saved_model, test_loader)
-    return acc
+    test_loss, test_acc, _ = test(saved_model, test_loader)
+    
+    train_summary = {"loss": loss_dict,
+                     "acc": acc_dict,
+                     "best_epoch": gold_epoch_id,
+                     "p_drop": p_drop_list,
+                     "switches": switches,
+                     "test_acc": test_acc}
+
+    return train_summary
 
 
 if __name__ == '__main__':
