@@ -42,13 +42,15 @@ def run_training(model,
     else:
         raise NotImplementedError("Not a valid optimizer")
 
-    use_optim_scheduler = False
+    use_optim_scheduler = optim_setup["scheduling"]
     if use_optim_scheduler:
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                            'min',
-                                                            factor=0.1,
-                                                            patience=2,
-                                                            verbose=True)
+        print("Adding ReduceLROnPlateu Scheduler")
+        lr_scheduler = \
+            optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                 'min',
+                                                  factor=optim_setup["factor"],
+                                                  patience=optim_setup["wait"],
+                                                  verbose=True)
 
     drop_schedule_setup = experiment_setup["use_drop_schedule"]
     if drop_schedule_setup != {}:
@@ -106,11 +108,22 @@ def run_training(model,
     p_drop_list = []  #  p_drop along epochs
     lr_list = []  # lr along epochs
     switches = []  # number of switches in a given layer
+
+    use_inv_drop = drop_schedule_setup["use_inv_drop"]
+    inv_startegy = drop_schedule_setup["inv_strategy"]
+    reset_counter = not(drop_schedule_setup["track_history"])
     
+    if use_inv_drop:
+        print("use inverted dropout strategy {inv_startegy}")
+        if reset_counter:
+            print("TEMPORAL HISTORY (PER EPOCH)")
+        else:
+            print("FULL HISTORY")
+
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
         print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
-        train_loss, train_acc, p_list = \
+        train_loss, train_acc, p_list, train_loss_list = \
             train(model,
                   train_loader,
                   optimizer,
@@ -121,31 +134,34 @@ def run_training(model,
                   max_p_drop=p_drop,
                   mix_rates=experiment_setup["mixout"],
                   plain_drop_flag=experiment_setup["plain_drop"],
-                  p_schedule=p_schedule)
+                  p_schedule=p_schedule,
+                  use_inverted_strategy=use_inv_drop,
+                  inverted_strategy=inv_startegy,
+                  reset_counter=reset_counter)
         
-        loss_dict["train"].append(train_loss)
+        loss_dict["train"].extend(train_loss_list)
         acc_dict["train"].append(train_acc)
         p_drop_list.append(p_list)
 
         #######################################################################
         ###### print frequencies of droping a neuron in the first FC layer
         #######################################################################
-        from collections import OrderedDict
-        from operator import itemgetter
+        #from collections import OrderedDict
+        #from operator import itemgetter
 
-        n_drops = OrderedDict(sorted(model.fc_1_idx.items(),
-                              key=itemgetter(1), reverse=False))
-        switches.append(n_drops)
+        #n_drops = OrderedDict(sorted(model.fc_1_idx.items(),
+        #                      key=itemgetter(1), reverse=False))
+        switches.append(model.switch_counter)
         
         #######################################################################
 
         #import pdb; pdb.set_trace()
-        val_loss, val_acc = validate(model,
-                                     val_loader,
-                                     epoch=epoch,
-                                     writer=writer)
+        val_loss, val_acc, val_loss_list = validate(model,
+                                                    val_loader,
+                                                    epoch=epoch,
+                                                    writer=writer)
 
-        loss_dict["val"].append(val_loss)
+        loss_dict["val"].append(val_loss_list)
         acc_dict["val"].append(val_acc)
 
         if use_optim_scheduler:
@@ -156,8 +172,9 @@ def run_training(model,
         #writer.add_scalars("accuracy_curve", {"train": train_acc,
         #                                      "val": val_acc}, epoch-1)
         if epoch % test_freq == 0 or epoch == 1:
-            test_loss, test_acc, _ = test(model, test_loader)
-            loss_dict["test"].append(test_loss)
+            test_loss, test_acc, _, test_loss_list =\
+                test(model, test_loader)
+            loss_dict["test"].extend(test_loss_list)
             acc_dict["test"].append(test_acc)
         
         earlystop(val_loss, model)
@@ -193,7 +210,7 @@ def run_training(model,
         
     saved_model.load_state_dict(torch.load(ckpt_path + ".pt", map_location='cpu'))
     saved_model = saved_model.to(model.device)
-    test_loss, test_acc, _ = test(saved_model, test_loader)
+    test_loss, test_acc, _, _ = test(saved_model, test_loader)
     
     train_summary = {"loss": loss_dict,
                      "acc": acc_dict,

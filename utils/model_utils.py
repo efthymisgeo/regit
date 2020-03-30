@@ -192,7 +192,10 @@ def train(model,
           max_p_drop=None,
           mix_rates=False,
           plain_drop_flag=False,
-          p_schedule=None):
+          p_schedule=None,
+          use_inverted_strategy=True,
+          inverted_strategy="importance",
+          reset_counter=False):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -210,17 +213,22 @@ def train(model,
         mix_rates (bool): handles the use of mixed drop rates
         plain_drop (bool): used for traditional dropour setup
         p_schedule (Scheduler): the scheduler instance which is used
-        device (str): "cpu" or "cuda"
+        use_inverted_strategy (bool): handles the use of inverted drop strategy
+        inverted_strategy (str): specifies the strategy to be used
+        reset_counter (bool): reset or not the switch counter at every epoch
 
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
         prob_value (float): list of dropout probabilities
     """
-          
+    USE_INVERTED_DROP_STRATEGY = use_inverted_strategy      
+    INVERTED_DROP_STRATEGY = inverted_strategy
+    RESET_COUNTER = reset_counter      
     model.train()
     train_loss = 0
     correct = 0
+    batch_loss = []
     step = 0
     prob_value = 0
     #attributor = None  # hach to dismiss previous values
@@ -275,7 +283,8 @@ def train(model,
     model.set_dropout(p_drop, mix_rates)
     print(f"Model is trained with p_drop {model.p_drop}")
 
-    model.reset_drop_cnt()
+    if RESET_COUNTER:
+        model.reset_drop_cnt()
 
     #import pdb; pdb.set_trace()
 
@@ -347,7 +356,10 @@ def train(model,
                     #gc.collect()
                     #torch.cuda.empty_cache()
                     #import pdb; pdb.set_trace()
+                model.update_sw_stats()
                 model.update_mask(neuron_imp, p_drop, mix_rates)
+                if USE_INVERTED_DROP_STRATEGY:
+                    model.update_inv_drop_factor(strategy=INVERTED_DROP_STRATEGY)
                 model.train()
                 #import pdb; pdb.set_trace()
     
@@ -365,6 +377,7 @@ def train(model,
         #import pdb;  pdb.set_trace()
         
         loss = F.nll_loss(output, target)
+        batch_loss.append(loss.item())
         train_loss += loss.item()
         loss.backward()
         optimizer.step()
@@ -405,7 +418,7 @@ def train(model,
     #writer.add_scalars("loss_curves", {"train": train_loss}, epoch-1)
     #writer.add_scalars("accuracy_curve", {"train": train_acc}, epoch-1)
     
-    return train_loss, train_acc, prob_value
+    return train_loss, train_acc, prob_value, batch_loss
 
 
 def validate(model,
@@ -414,13 +427,16 @@ def validate(model,
              writer=None):
     model.eval()
     val_loss = 0
+    batch_loss = []
     correct = 0
     with torch.no_grad():
         for data, target in val_loader:
             data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
-            val_loss += F.nll_loss(output, target).item()  # sum up batch loss
+            loss = F.nll_loss(output, target)
+            batch_loss.append(loss.item())
+            val_loss += loss.item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -434,7 +450,7 @@ def validate(model,
         print('Validation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)'.format(
               val_loss, correct, len(val_loader.sampler), accuracy))
 
-    return val_loss, accuracy
+    return val_loss, accuracy, batch_loss
 
 
 def test(model, test_loader):
@@ -442,13 +458,16 @@ def test(model, test_loader):
     model_name = model.__class__.__name__
     test_loss = 0
     correct = 0
+    batch_loss = []
     misclassified_batch = []
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(model.device), target.to(model.device)
             #_, output = model(data)
             output = model(data)
-            test_loss += F.nll_loss(output, target).item()  # sum up batch loss
+            loss = F.nll_loss(output, target)
+            batch_loss.append(loss.item())
+            test_loss += loss.item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
             misclassified_batch.append((target.view_as(pred) - pred).clone().cpu().detach().numpy())
@@ -463,7 +482,7 @@ def test(model, test_loader):
     for misclassified_b in misclassified_batch[1:]:
         misclassified = np.append(misclassified, misclassified_b, axis=0)
 
-    return test_loss, accuracy, misclassified
+    return test_loss, accuracy, misclassified, batch_loss
 
 
 
@@ -524,3 +543,9 @@ class EarlyStopping:
                        self.ckpt_path + ".pt")
 
         self.val_loss_min = val_loss
+
+    def reset_counter(self):
+        """re-init counter to 0
+        """
+        self.counter = 0
+

@@ -22,7 +22,7 @@
         "momentum": 0.9
     },
     "use_cuda": true,
-    "cuda_device": "cuda:1",
+    "cuda_device": "cuda:0",
     "save_model": true,
     "plain_drop": false,
     "p_drop": 0.5

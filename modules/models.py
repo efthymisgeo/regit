@@ -1,6 +1,8 @@
 import os
 import sys
+import copy
 import torch
+import collections
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -167,8 +169,8 @@ class CNN2D(nn.Module):
 
         self.drop_masks = []
         
-        self.fc_1_idx = {str(i): 0 for i in range(self.fc_layer_list[0])}
-    
+        self.total_sw_cnt, self.switch_counter = self.reset_drop_cnt()        
+
     def _get_activ(self):
         """Returns activation function 
         """
@@ -231,7 +233,7 @@ class CNN2D(nn.Module):
     def _make_fc(self):
         """Generate fully connected layers
         """
-        fc_list = self.fc_layer_list.copy() # copy to no affect original list
+        fc_list = self.fc_layer_list.copy() # copy to not affect original list
         fc_list.insert(0, self.fc_input_size) # append the cnn output at the beggining
         fc = []
         # append linear layers
@@ -246,8 +248,56 @@ class CNN2D(nn.Module):
         else:
             self.p_drop = p
 
+    def update_sw_stats(self):
+        """ updates neuron drop statistics """
+        self.total_sw_cnt += 1  # update total counter
+        for i in range(self.n_fc_layers - 1):
+            # TODO avoid transfering mask to cpu since it is in gpu
+            #if i == 0: import pdb; pdb.set_trace()
+            tmp = np.where(self.drop_masks[i].cpu().detach().numpy()==0)[0]
+            for k in tmp:
+                self.switch_counter[i][str(int(k))] += 1
+    
     def reset_drop_cnt(self):
-        self.fc_1_idx = {str(i): 0 for i in range(self.fc_layer_list[0])} 
+        """ resets drop counter to re-evaluate drop statistics """
+        self.total_sw_cnt = 0
+        self.switch_counter = \
+            [{str(i): 0 for i in range(self.fc_layer_list[i])} for i in range(self.n_fc_layers - 1)]
+        return self.total_sw_cnt, self.switch_counter
+
+    
+    def sort_dict_by_key(self, in_dict):
+        # swap to int keys
+        tmp_dict = {int(k):int(v) for k,v in in_dict.items()}
+        od = collections.OrderedDict(sorted(tmp_dict.items()))
+        return od
+    
+    def update_inv_drop_factor(self, strategy="bernoulli"):
+        if strategy == "bernoulli":
+            for i, mask in enumerate(self.drop_masks):
+                self.drop_masks[i] = torch.div(mask, 1-self.p_drop)
+        elif strategy == "importance":
+            for i, mask in enumerate(self.drop_masks):
+                od = self.sort_dict_by_key(self.switch_counter[i].copy())
+                sorted_switches = torch.tensor(list(od.values()), dtype=torch.float).to(mask.device)
+                #if i == 0: print("BEFOOORE", sorted_switches)
+                if self.total_sw_cnt != 0:
+                    sorted_switches = torch.div(sorted_switches,
+                                                self.total_sw_cnt)
+                    #if i == 0: print("BEFOOORE", sorted_switches)
+                self.drop_masks[i] = torch.div(mask, 1-sorted_switches)
+        elif strategy == "condimportance":    
+            for i, mask in enumerate(self.drop_masks):
+                od = self.sort_dict_by_key(self.switch_counter[i].copy())
+                sorted_switches = torch.tensor(list(od.values()), dtype=torch.float).to(mask.device)
+                #if i == 0: print("BEFOOORE", sorted_switches)
+                if self.total_sw_cnt != 0:
+                    sorted_switches = torch.div(sorted_switches,
+                                                self.total_sw_cnt/self.p_drop)
+                    #if i == 0: print("BEFOOORE", sorted_switches)
+                self.drop_masks[i] = torch.div(mask, 1-sorted_switches)
+        else:
+            raise NotImplementedError("Ti kaneis re malaka")
     
     def init_mask(self, trick="bernoulli", p_drop=None):
         """
@@ -294,13 +344,13 @@ class CNN2D(nn.Module):
             else:
                 raise ValueError("Not implemented trick")
             
-            if i == 0:
-                tmp = np.nonzero(self.drop_masks[i].cpu().detach().numpy())[0]
-                for k in tmp:
-                    try:
-                        self.fc_1_idx[str(int(k))] += 1
-                    except:
-                        print(k)
+            # if i == 0:
+            #     tmp = np.where(self.drop_masks[i].cpu().detach().numpy()==0)[0]
+            #     for k in tmp:
+            #         try:
+            #             self.fc_1_idx[str(int(k))] += 1
+            #         except:
+            #             print(k)
 
     def update_mask(self, importance=None, p_drop=None, mix_rates=False):
         """
@@ -360,8 +410,14 @@ class CNN2D(nn.Module):
         #######################################################################
         ##### configuration similar to pytorch and tf
         #######################################################################
-        masked_output = \
-            torch.div(torch.mul(x, self.drop_masks[idx]), 1-self.p_drop)
+        
+        ## old configuration
+        # masked_output = \
+        #     torch.div(torch.mul(x, self.drop_masks[idx]), 1-self.p_drop)
+        
+        # new configuration
+        #if idx == 0: import pdb; print(self.drop_masks[idx][:100])
+        masked_output = torch.mul(x, self.drop_masks[idx])
         #print("applied mask")
         #######################################################################
         #### configuration in which only limiting p_drop value is being used
@@ -431,13 +487,13 @@ class CNN2D(nn.Module):
             # temp_mask[mixed_idx] = 0.0
             self.drop_masks.append(temp_mask)
 
-            # for debugging purposes
-            if i == 0:
-                for k in mixed_idx.cpu().detach().numpy():
-                    try:
-                        self.fc_1_idx[str(k)] += 1
-                    except:
-                        print(k)
+            # # for debugging purposes
+            # if i == 0:
+            #     for k in mixed_idx.cpu().detach().numpy():
+            #         try:
+            #             self.fc_1_idx[str(k)] += 1
+            #         except:
+            #             print(k)
             
     def smooth_importance(self, importance, method="mean", p_drop=None):
         """
@@ -488,13 +544,13 @@ class CNN2D(nn.Module):
             # add to drop mask
             self.drop_masks.append(temp_mask)
             # for debugging purposes
-            if i == 0:
-                for k in unsorted_idx.cpu().detach().numpy():
-                    try:
-                        self.fc_1_idx[str(k)] += 1
-                    except:
-                        print(k)
-                    
+            # if i == 0:
+            #     for k in unsorted_idx.cpu().detach().numpy():
+            #         try:
+            #             self.fc_1_idx[str(k)] += 1
+            #         except:
+            #             print(k)
+
     def get_masks(self, x):
         random_sequence = np.random.choice([0, 1],
                                            size=(x.shape[1],),

@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_mix_0.001_0.00004",
+    "experiment_id": "_mix_lrschedule_0.001_0.00004",
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
     "regularization": true,
@@ -11,19 +11,22 @@
         "gamma": 0.00004
     },
     "mixout": true,
-    "runs": 2,
+    "runs": 3,
     "n_steps": 25,
     "batch_size": 64,
     "test_batch_size": 1000,
     "valid_size": 0.25,
-    "patience": 22,
+    "patience": 50,
     "epochs": 500,
     "weught_decay": 0.0,
     "optimization":
     {
         "optimizer": "SGD",
         "lr": 0.001,
-        "momentum": 0.9
+        "momentum": 0.9,
+        "scheduling": true,
+        "factor": 0.5,
+        "wait": 10
     },
     "use_cuda": true,
     "cuda_device": "cuda:0",
