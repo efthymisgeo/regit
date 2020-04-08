@@ -84,11 +84,18 @@ def run_training(model,
             raise NotImplementedError(f"{drop_schedule_setup['prob_scheduler']}"
                                       "is not a valid scheduler. " 
                                       "Refusing to proceed.")
+        use_inv_drop = drop_schedule_setup["use_inv_drop"]
+        inv_startegy = drop_schedule_setup["inv_strategy"]
+        reset_counter = not(drop_schedule_setup["track_history"])
     else:
         print("No custom scheduler is used. Proceeding without any.\n"
               "The dropout probability will be fixed from now on.")
         p_schedule = None
         p_drop = experiment_setup["p_drop"]
+        use_inv_drop = False
+        inv_startegy = None
+        reset_counter = True
+
 
     # early stopping
     earlystop = EarlyStopping(patience=experiment_setup["patience"],
@@ -101,7 +108,7 @@ def run_training(model,
     #writer = SummaryWriter("compare_experiments/" + "bindrop/" + config.model_id)
     writer=None
 
-    test_freq = 1 # 3 for MNIST 5 for CIFAR
+    test_freq = 10 # 3 for MNIST 5 for CIFAR
     loss_dict = {"train": [], "val": [], "test": []}
     acc_dict = {"train": [], "val": [], "test": []}
     gold_epoch_id = -1  # best epoch id
@@ -109,10 +116,6 @@ def run_training(model,
     lr_list = []  # lr along epochs
     switches = []  # number of switches in a given layer
 
-    use_inv_drop = drop_schedule_setup["use_inv_drop"]
-    inv_startegy = drop_schedule_setup["inv_strategy"]
-    reset_counter = not(drop_schedule_setup["track_history"])
-    
     if use_inv_drop:
         print("use inverted dropout strategy {inv_startegy}")
         if reset_counter:
@@ -120,6 +123,19 @@ def run_training(model,
         else:
             print("FULL HISTORY")
 
+    if experiment_setup["importance"]:
+        sampling_imp = experiment_setup["imp_sampling"]
+    else:
+        # sample at every batch. equivalent to no smapling
+        sampling_imp = 1
+    print(f"Sampling Neuron Importance per {sampling_imp} batces")
+
+    aggregate = experiment_setup["aggregate"]
+    if aggregate:
+        print(f"Using a single mask per batch")
+    else:
+        print(f"Using a mask per sample in every batch")
+        
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
         print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
@@ -137,7 +153,9 @@ def run_training(model,
                   p_schedule=p_schedule,
                   use_inverted_strategy=use_inv_drop,
                   inverted_strategy=inv_startegy,
-                  reset_counter=reset_counter)
+                  reset_counter=reset_counter,
+                  sampling_imp=sampling_imp,
+                  aggregate=aggregate)
         
         loss_dict["train"].extend(train_loss_list)
         acc_dict["train"].append(train_acc)

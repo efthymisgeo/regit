@@ -195,7 +195,9 @@ def train(model,
           p_schedule=None,
           use_inverted_strategy=True,
           inverted_strategy="importance",
-          reset_counter=False):
+          reset_counter=False,
+          sampling_imp=50,
+          aggregate=True):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -216,6 +218,8 @@ def train(model,
         use_inverted_strategy (bool): handles the use of inverted drop strategy
         inverted_strategy (str): specifies the strategy to be used
         reset_counter (bool): reset or not the switch counter at every epoch
+        sampling_imp (list/int): int or list of ints which indicate the number
+            of batches a single mask will be applied
 
     Returns:
         train_loss (float): list of train losses per epoch
@@ -231,6 +235,16 @@ def train(model,
     batch_loss = []
     step = 0
     prob_value = 0
+
+    SAMPLING = sampling_imp # sampling masks in a minibatch (aka calculating attributions)
+    if isinstance(sampling_imp, list):
+        if epoch <= len(sampling_imp):
+            SAMPLING = sampling_imp[epoch-1]
+        else:
+            SAMPLING = sampling_imp[-1]
+    else:
+        SAMPLING = sampling_imp
+
     #attributor = None  # hach to dismiss previous values
 
     ###########################################################################
@@ -282,7 +296,7 @@ def train(model,
 
     model.set_dropout(p_drop, mix_rates)
     print(f"Model is trained with p_drop {model.p_drop}")
-
+    
     if RESET_COUNTER:
         model.reset_drop_cnt()
 
@@ -291,9 +305,9 @@ def train(model,
     #print(f"Dropout probability {p_drop}")
     for batch_idx, (data, target) in tqdm(enumerate(train_loader),
                                                     total=len(train_loader)):
-        #print(f"batch idx is {batch_idx}")
         data, target = data.to(model.device), target.to(model.device)
-        #import pdb; pdb.set_trace()
+        batch_size = data.size(0)
+        
         #attributor = \
         #        [LayerConductance(model, model.fc[i]) 
         #            for i in range(model.n_fc_layers-1)]
@@ -313,7 +327,9 @@ def train(model,
             # model.init_mask(p_drop=p_drop)
             if p_drop != 0.0:
                 if batch_idx == 0: print(f"Model trained with p={p_drop}")
-                model.update_mask(p_drop=p_drop)
+                model.update_mask(p_drop=p_drop, aggregate=aggregate,
+                                  batch_size=batch_size)
+                model.update_inv_drop_factor(strategy="bernoulli")
             else:
                 if batch_idx == 0: print(f"zero dropout value. no drop applied")
                 model.init_mask(trick="ones")
@@ -328,36 +344,42 @@ def train(model,
             elif p_drop == 0.0:
                 if batch_idx == 0: print("applying dropout")
                 model.init_mask(trick="ones")
+                neuron_imp = None  # this is for compatibility in sampling case
             else:
-                if batch_idx == 0 and epoch ==1: print(f"entered attribution")
                 model.eval()
-                neuron_imp = []
-                baseline = data*0.0
-                for lc in attributor:
-                    #print("entered attribution")
-                    d1 = torch.clone(data)
-                    tmp_tensor = lc.attribute(d1,
-                                              baselines=baseline,
-                                              target=target,
-                                              n_steps=25)
-                    
-                    #torch.cuda.empty_cache()
+                if batch_idx % SAMPLING == 0:
+                    #print("ENTERED ATTRIBUTION CALCULATION AREA")
+                    neuron_imp = []
+                    baseline = data*0.0
+                    for lc in attributor:
+                        #print("entered attribution")
+                        d1 = torch.clone(data)
+                        tmp_tensor = lc.attribute(d1,
+                                                  baselines=baseline,
+                                                  target=target,
+                                                  n_steps=25)
+                        
+                        #torch.cuda.empty_cache()
 
-                    #neuron_imp.append(torch.sum(lc.attribute(data,
-                    #                 baselines=baseline, target=target),
-                    #                 dim=0))
-                    #print("sumed over batch importances")
-                    neuron_imp.append(torch.sum(tmp_tensor, dim=0))
-                    #neuron_imp.append(tmp_tensor)
-                    
-                    #del tmp_tensor
-                    
-                    #del lc
-                    #gc.collect()
-                    #torch.cuda.empty_cache()
-                    #import pdb; pdb.set_trace()
+                        #neuron_imp.append(torch.sum(lc.attribute(data,
+                        #                 baselines=baseline, target=target),
+                        #                 dim=0))
+                        #print("sumed over batch importances")
+                        if aggregate:
+                            neuron_imp.append(torch.sum(tmp_tensor, dim=0))
+                        else:
+                            neuron_imp.append(tmp_tensor)
+                        #neuron_imp.append(tmp_tensor)
+                        
+                        #del tmp_tensor
+                        
+                        #del lc
+                        #gc.collect()
+                        #torch.cuda.empty_cache()
+                        #import pdb; pdb.set_trace()
                 model.update_sw_stats()
-                model.update_mask(neuron_imp, p_drop, mix_rates)
+                model.update_mask(neuron_imp, p_drop, mix_rates,
+                                  aggregate, batch_size)
                 if USE_INVERTED_DROP_STRATEGY:
                     model.update_inv_drop_factor(strategy=INVERTED_DROP_STRATEGY)
                 model.train()
@@ -383,6 +405,10 @@ def train(model,
         optimizer.step()
 
         prob_value = p_drop
+
+        # if epoch==1 and batch_idx == 500:
+        #     import pdb; pdb.set_trace()
+        #     print(model.switch_counter) 
 
         #######################################################################
         ############ TENSORBOARD LOGGING    ###################################

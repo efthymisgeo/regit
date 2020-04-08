@@ -1,13 +1,14 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_dropout_0.5_0.01",
+    "experiment_id": "_custom_dropout_per_sample_0.5_0.001_25runs",
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
     "regularization": true,
+    "aggregate": false,
     "importance": false,
     "use_drop_schedule": {},
     "mixout": false,
-    "runs": 10,
+    "runs": 25,
     "n_steps": 25,
     "batch_size": 64,
     "test_batch_size": 1000,
@@ -18,8 +19,11 @@
     "optimization":
     {
         "optimizer": "SGD",
-        "lr": 0.01,
-        "momentum": 0.9
+        "lr": 0.001,
+        "momentum": 0.9,
+        "scheduling": false,
+        "wait": 10,
+        "factor": 0.5
     },
     "use_cuda": true,
     "cuda_device": "cuda:0",

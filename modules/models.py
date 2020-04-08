@@ -169,7 +169,15 @@ class CNN2D(nn.Module):
 
         self.drop_masks = []
         
-        self.total_sw_cnt, self.switch_counter = self.reset_drop_cnt()        
+        self.total_sw_cnt, self.switch_counter = self.reset_drop_cnt()
+
+        
+        # hack to work - will be removed in future
+        # self.add_dropout = True
+        # if self.add_dropout and not(self.regularization):
+        #     self.drop_list = []
+        #     for i in range(self.n_fc_layers-1):
+        #         self.drop_list.append(nn.Dropout(self.p_drop))
 
     def _get_activ(self):
         """Returns activation function 
@@ -225,7 +233,7 @@ class CNN2D(nn.Module):
                 x = x // self.pool_size[0]
                 y = y // self.pool_size[1]
             if self.conv_drop[i_cnn]:
-                conv_layers.append(nn.Dropout(p=self.p_conv_drop))
+                conv_layers.append(nn.Dropout(p=0.5))
 
         output_size = (self.channels[-1][-1] , x, y)
         return nn.Sequential(*conv_layers), output_size
@@ -275,6 +283,7 @@ class CNN2D(nn.Module):
     def update_inv_drop_factor(self, strategy="bernoulli"):
         if strategy == "bernoulli":
             for i, mask in enumerate(self.drop_masks):
+                #import pdb; pdb.set_trace()
                 self.drop_masks[i] = torch.div(mask, 1-self.p_drop)
         elif strategy == "importance":
             for i, mask in enumerate(self.drop_masks):
@@ -299,7 +308,11 @@ class CNN2D(nn.Module):
         else:
             raise NotImplementedError("Ti kaneis re malaka")
     
-    def init_mask(self, trick="bernoulli", p_drop=None):
+    def init_mask(self,
+                  trick="bernoulli",
+                  p_drop=None,
+                  aggregate=True,
+                  batch_size=32):
         """
         Initializes drop mask with prob p.
         There are three available methods:
@@ -318,6 +331,10 @@ class CNN2D(nn.Module):
             trick (str): "uniform", "deterministic", "bernoulli"
             p_drop (float): dropout probability. by default is none. use it in
                 case you want to overwrite the default config value
+            aggregate (bool): True value means a single mask will be used per
+                batch
+            batch_size (int): required only when aggregate is False where we
+                need one mask per sample
         """
         if p_drop is None:
             p_drop = self.p_drop
@@ -325,10 +342,19 @@ class CNN2D(nn.Module):
         for i, n_neurons in enumerate(self.fc_layer_list):
             if i == (self.n_fc_layers-1): continue
             if trick == "bernoulli":
-                temp_mask = torch.ones(n_neurons, device=self.device)
-                mask = torch.mul(temp_mask, p_drop)
+                if aggregate:
+                    temp_mask = torch.ones(n_neurons, device=self.device)
+                else:    
+                    temp_mask = torch.ones((batch_size, n_neurons),
+                                            device=self.device)
+                # this was a huge bug, have it in mid for future inconsistencies
+                #mask = torch.mul(temp_mask, p_drop)
+                mask = torch.mul(temp_mask, 1 - p_drop)
                 self.drop_masks.append(torch.bernoulli(mask))
             elif trick == "deterministic":
+                # TODO fix deterministic case when attribution is False
+                if not attribution:
+                    raise NotImplementedError("SHould not be in here!!!!")
                 mask_idx = torch.randperm(n_neurons)
                 n_keep_idx = int(p_drop*n_neurons)
                 drop_idx, _ = torch.sort(mask_idx[:n_keep_idx])
@@ -336,10 +362,17 @@ class CNN2D(nn.Module):
                 temp_mask[drop_idx] = 0.0
                 self.drop_masks.append(temp_mask)
             elif trick == "uniform":
-                mask = torch.FloatTensor(n_neurons).uniform_(0,1).to(self.device)
+                if aggregate:
+                    mask = torch.FloatTensor(n_neurons).uniform_(0,1).to(self.device)
+                else:
+                    mask = torch.FloatTensor(batch_size, n_neurons).uniform_(0,1).to(self.device)
                 self.drop_masks.append(((mask > p_drop).int()).float())
             elif trick == "ones":
-                temp_mask = torch.ones(n_neurons, device=self.device)
+                if aggregate:
+                    temp_mask = torch.ones(n_neurons, device=self.device)
+                else:
+                    temp_mask = torch.ones((batch_size, n_neurons),
+                                            device=self.device)
                 self.drop_masks.append(temp_mask)
             else:
                 raise ValueError("Not implemented trick")
@@ -352,7 +385,12 @@ class CNN2D(nn.Module):
             #         except:
             #             print(k)
 
-    def update_mask(self, importance=None, p_drop=None, mix_rates=False):
+    def update_mask(self,
+                    importance=None,
+                    p_drop=None,
+                    mix_rates=False,
+                    aggregate=True,
+                    batch_size=None):
         """
         Updates mask based on some criterion
         Function which handles different dropout scenarios. Namely
@@ -370,13 +408,15 @@ class CNN2D(nn.Module):
         # check for existing dropout prob
         if p_drop is None:
             p_drop = self.p_drop
+        #print(p_drop)
         
         # clear mask list
         self.drop_masks = []
 
         if importance is None:
             # corresponds to dropout case
-            self.init_mask(trick="bernoulli", p_drop=p_drop)
+            self.init_mask(trick="bernoulli", p_drop=p_drop,
+                           aggregate=aggregate, batch_size=batch_size)
         elif mix_rates:
             plain_drop_p = p_drop[0]
             intel_drop_p = p_drop[1]
@@ -385,13 +425,16 @@ class CNN2D(nn.Module):
                 #print(f"only intel mode is on")
                 self.smooth_importance(importance,
                                        method="mean",
-                                       p_drop=intel_drop_p)
+                                       p_drop=intel_drop_p,
+                                       aggregate=aggregate,
+                                       batch_size=batch_size)
             else:
                 # both modes active
                 #print(f"both modes are active")
                 self.mixout(importance, plain_drop_p, intel_drop_p)
         else:
-            self.smooth_importance(importance, method="mean", p_drop=p_drop)
+            self.smooth_importance(importance, method="mean", p_drop=p_drop,
+                                    aggregate=aggregate, batch_size=batch_size)
                     
     def apply_mask(self, x, mask=None, idx=0):
         """
@@ -417,6 +460,7 @@ class CNN2D(nn.Module):
         
         # new configuration
         #if idx == 0: import pdb; print(self.drop_masks[idx][:100])
+        #import pdb; pdb.set_trace()
         masked_output = torch.mul(x, self.drop_masks[idx])
         #print("applied mask")
         #######################################################################
@@ -495,7 +539,11 @@ class CNN2D(nn.Module):
             #         except:
             #             print(k)
             
-    def smooth_importance(self, importance, method="mean", p_drop=None):
+    def smooth_importance(self, importance,
+                          method="mean",
+                          p_drop=None,
+                          aggregate=True,
+                          batch_size=32):
         """
         Function which smooths the importance over neurons in a batch.
         Args:
@@ -523,12 +571,41 @@ class CNN2D(nn.Module):
             # second method is to check is more than one elements are nan
             if torch.sum(torch.isnan(lc)) >= k_list[i]:
                 # random pick
-                mask_idx = torch.randperm(self.fc_layer_list[i])
-                unsorted_idx, _ = torch.sort(mask_idx[:k_list[i]])
+                if aggregate:
+                    temp_mask = torch.ones(self.fc_layer_list[i],
+                                           device=self.device)
+                else:    
+                    temp_mask = torch.ones((batch_size, self.fc_layer_list[i]),
+                                            device=self.device)
+                # this was a huge bug, have it in mid for future inconsistencies
+                #mask = torch.mul(temp_mask, p_drop)
+                temp_mask = torch.mul(temp_mask, 1 - p_drop)
+                temp_mask = torch.bernoulli(temp_mask)
+                
+                # if aggregate:
+                #     mask_idx = torch.randperm(self.fc_layer_list[i])
+                #     unsorted_idx, _ = torch.sort(mask_idx[:k_list[i]])
+                # else:
+                #     mask_idx = torch.randperm((batch_size, self.fc_layer_list[i]))
+
                 print("attribution invalid")
             else:
                 # Q: is there any way to avoid ranking/topk???
                 _, unsorted_idx = torch.topk(lc, k_list[i], largest=True)
+                if not aggregate:
+                    shift_idx = (torch.arange(0, lc.size(0)).view(-1, 1) * lc.size(1)).to(self.device)
+                    unsorted_idx_shifted = torch.add(unsorted_idx, shift_idx)
+                    #import pdb; pdb.set_trace()
+                    temp_mask = torch.ones((batch_size,
+                                            self.fc_layer_list[i]),
+                                            device=self.device).view(-1)
+                    temp_mask[unsorted_idx_shifted.view(-1)] = 0.0
+                    temp_mask = temp_mask.view(batch_size, self.fc_layer_list[i])
+                else:
+                    temp_mask = torch.ones(self.fc_layer_list[i],
+                                           device=self.device)
+                    temp_mask[unsorted_idx] = 0.0
+
             
                 #if torch.max(sorted_idx) == 1065353216:
 
@@ -536,10 +613,6 @@ class CNN2D(nn.Module):
                 #import pdb; pdb.set_trace()
                 # get unsorted idxs
                 #unsorted_idx, _ = torch.sort(sorted_idx)
-            
-            # create mask
-            temp_mask = torch.ones(self.fc_layer_list[i], device=self.device)
-            temp_mask[unsorted_idx] = 0.0
             #import pdb; pdb.set_trace()            
             # add to drop mask
             self.drop_masks.append(temp_mask)
@@ -627,6 +700,7 @@ class CNN2D(nn.Module):
         # BxD
         out = out.view(-1, self.fc_input_size) 
         
+        #import pdb; pdb.set_trace()
         # apply regularization
         if self.regularization:
             for i in range(self.n_fc_layers -1):
@@ -646,14 +720,17 @@ class CNN2D(nn.Module):
         elif self.add_dropout:
             # original dropout implemetnation
             for i in range(self.n_fc_layers - 1):
-                x = self.fc[i](x)
-                x = self.drop_list[i](x)
-                x = F.relu(x)
+                if self.training:
+                    out = self.fc[i](out)
+                    out = self.drop_list[i](out)
+                    out = F.relu(out)
+                    #import pdb; pdb.set_trace()
+                else:
+                    # inference branch
+                    out = F.relu(self.fc[i](out))
         else:
-            # inference branch
-            for i in range(self.n_fc_layers - 1):
-                out = F.relu(self.fc[i](out))
-        
+            raise ValueError("Neither custom nor dropout implementaion")
+                
         out = self.fc[-1](out)
         return F.log_softmax(out, dim=1)
 
