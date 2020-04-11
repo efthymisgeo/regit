@@ -56,9 +56,9 @@ def run_training(model,
     if drop_schedule_setup != {}:
         p_drop = drop_schedule_setup["p_drop"]
         epoch_steps = len(train_loader)  # n_steps the optimizer is being used 
-        if drop_schedule_setup["prob_scheduler"] is "Lin":
-            # this setup saturates at epoch 5
-            saturation_epoch = drop_schedule_setup["saturation_epoch"]
+        if drop_schedule_setup["prob_scheduler"] == "Lin":
+            # this setup saturates at epoch peak epoch
+            saturation_epoch = drop_schedule_setup["peak_epoch"]
             p_schedule = \
                 LinearScheduler([0.0, p_drop],
                                 saturation_epoch * epoch_steps)

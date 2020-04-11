@@ -1,16 +1,16 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_condrop_per_sample_0.001_0.000004_1run",
+    "experiment_id": "_condrop_batch_lin_0.001_10_1run",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
     "regularization": true,
     "importance": true,
-    "aggregate": false,
+    "aggregate": true,
     "use_drop_schedule": {
-        "prob_scheduler": "Exp",
+        "prob_scheduler": "Lin",
         "p_drop": 0.5,
-        "gamma": 0.000004,
+        "peak_epoch": 10, 
         "use_inv_drop": true,
         "inv_strategy": "bernoulli",
         "track_history": false

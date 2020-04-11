@@ -54,7 +54,10 @@ class LinearScheduler(Scheduler):
         self.start = point[0]
         self.end = point[1]
         self.n_points = n_points
-        self.time = np.linspace(self.start, self.end, self.n_points)
+        self.eps = 0.000001
+        self.time = np.linspace(self.start + self.eps,
+                                self.end,
+                                self.n_points)
         self.t = 0
 
     def f_schedule(self, idx=None):
@@ -81,6 +84,29 @@ class MultiplicativeScheduler(Scheduler):
         if idx is None:
             idx = self.t
         return self.time[idx]
+
+
+class PowerScheduler(Scheduler):
+    """
+    A scheduler which increases value based on some power
+    """
+    def __init__(self, point, n_points, gamma):
+        super(PowerScheduler, self).__init__()
+        self.start = point[0]    
+        self.end = point[1]
+        self.n_points = n_points
+        self.gamma = gamma
+        self.time = np.linspace(0, self.n_points, self.n_points)
+        self.exp_t = self.get_function()
+        self.t = 0
+    
+    def get_function(self):
+        return (self.end - self.start)*(np.exp(self.gamma * self.time) - 1)
+    
+    def f_schedule(self, idx=None):
+        if idx is None:
+            idx = self.t
+        return self.exp_t[idx]
 
 
 class ExponentialScheduler(Scheduler):
@@ -112,7 +138,7 @@ class StepScheduler(Scheduler):
     A scheduler which holds steady state for a given number of updates 
     and then jumps to the next value.
     """
-    def __init__(self, point, n_points):
+    def __init__(self, point, n_points, step_freq=10):
         super(StepScheduler, self).__init__()
         self.start = point[0]
         self.end = point[1]
@@ -275,7 +301,8 @@ def train(model,
             p_drop = drop_list[-1]
     
     if p_schedule is not None:
-        p_drop = p_schedule.get_prob()
+        #p_drop = p_schedule.get_prob()
+        p_drop = p_schedule.step()
         print("Using custom scheduler")
         if mix_rates:
             # p_drop = (plain_drop, intel_drop)
@@ -377,9 +404,9 @@ def train(model,
                         #gc.collect()
                         #torch.cuda.empty_cache()
                         #import pdb; pdb.set_trace()
-                model.update_sw_stats()
                 model.update_mask(neuron_imp, p_drop, mix_rates,
                                   aggregate, batch_size)
+                model.update_sw_stats()
                 if USE_INVERTED_DROP_STRATEGY:
                     model.update_inv_drop_factor(strategy=INVERTED_DROP_STRATEGY)
                 model.train()

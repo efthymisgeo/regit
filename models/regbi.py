@@ -111,7 +111,8 @@ if __name__ == '__main__':
     plain_drop_flag = exp_setup["plain_drop"]
     if exp_setup["use_drop_schedule"] != {}: 
         custom_scheduler = exp_setup["use_drop_schedule"]["prob_scheduler"]
-        gamma = exp_setup["use_drop_schedule"]["gamma"]
+        if custom_scheduler == "Exp":
+            gamma = exp_setup["use_drop_schedule"]["gamma"]
     print_config(exp_setup)
 
     # accumulate accuracies per run

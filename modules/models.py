@@ -258,6 +258,7 @@ class CNN2D(nn.Module):
 
     def update_sw_stats(self):
         """ updates neuron drop statistics """
+        #import pdb; pdb.set_trace()
         self.total_sw_cnt += 1  # update total counter
         for i in range(self.n_fc_layers - 1):
             # TODO avoid transfering mask to cpu since it is in gpu
