@@ -49,16 +49,33 @@ class LinearScheduler(Scheduler):
     A linear scheduler which is given a `start` and `end` value and draws
     a line between them by interpolating `n_points` between them.
     """
-    def __init__(self, point, n_points):
+    def __init__(self, point, n_points, delay=0.0, eps=0.000001):
         super(LinearScheduler, self).__init__()
         self.start = point[0]
         self.end = point[1]
         self.n_points = n_points
-        self.eps = 0.000001
-        self.time = np.linspace(self.start + self.eps,
-                                self.end,
-                                self.n_points)
+        self.eps = eps
+        self.delay = delay
+        self.time = self.add_delay()        
         self.t = 0
+    
+    def add_delay(self):
+        """function which adds delay"""
+        if self.delay > 0.0:
+            pad = np.zeros(self.delay)
+            if self.n_points - self.delay <= 0:
+                raise ValueError("Delay exceeds total number of points")
+            else:
+                time = np.linspace(self.start + self.eps,
+                                   self.end,
+                                   self.n_points - self.delay)
+            time = np.concatenate((pad, time), axis=0)
+        else:
+            time = np.linspace(self.start + self.eps,
+                               self.end,
+                               self.n_points)
+        return time
+        
 
     def f_schedule(self, idx=None):
         if idx is None:
@@ -206,6 +223,24 @@ def get_tensors(only_cuda=False, omit_objs=[]):
     return tensors.values()  # return a list of detected tensors
 
 
+def sample_tensor(x, p_x):
+    """
+    Function which samples a proportion p_x of a given tensor x along its 0 dim
+    For instance for a [10, 33]  tensor it will return a [5, 33] tensor
+    Args:
+        x (torch.tensor): B x D
+        p_x (float): float in range [0,1]
+    Output:
+        sampled_x (torch.tensor): int(B*p_x) x D
+    """
+    if p_x <= 0.0 or p_x >= 1.0:
+        raise ValueError("Proportion not in valid range.")
+    s_dim = x.size(0)
+    n_keep = int(s_dim * p_x)
+    rand_x = torch.randperm(s_dim)
+    sampled_x = rand_x[:n_keep]
+    return sampled_x            
+
 
 def train(model,
           train_loader,
@@ -254,7 +289,9 @@ def train(model,
     """
     USE_INVERTED_DROP_STRATEGY = use_inverted_strategy      
     INVERTED_DROP_STRATEGY = inverted_strategy
-    RESET_COUNTER = reset_counter      
+    RESET_COUNTER = reset_counter
+    SAMPLE_BATCH = False
+    P_BATCH = 0.5      
     model.train()
     train_loss = 0
     correct = 0
@@ -301,8 +338,9 @@ def train(model,
             p_drop = drop_list[-1]
     
     if p_schedule is not None:
-        #p_drop = p_schedule.get_prob()
-        p_drop = p_schedule.step()
+        # TODO investigate whether to use get_prob() or step()
+        p_drop = p_schedule.get_prob()
+        #p_drop = p_schedule.step()
         print("Using custom scheduler")
         if mix_rates:
             # p_drop = (plain_drop, intel_drop)
@@ -369,7 +407,7 @@ def train(model,
                 if batch_idx == 0: print(f"intel mode is off")
                 model.update_mask(importance=None, p_drop=p_drop[0])
             elif p_drop == 0.0:
-                if batch_idx == 0: print("applying dropout")
+                if batch_idx == 0: print("applying unitary mask instead of dropout")
                 model.init_mask(trick="ones")
                 neuron_imp = None  # this is for compatibility in sampling case
             else:
@@ -380,7 +418,12 @@ def train(model,
                     baseline = data*0.0
                     for lc in attributor:
                         #print("entered attribution")
-                        d1 = torch.clone(data)
+                        if SAMPLE_BATCH:
+                            dl = sample_tensor(data, P_BATCH)
+                        else:
+                            d1 = torch.clone(data)
+                        
+                        
                         tmp_tensor = lc.attribute(d1,
                                                   baselines=baseline,
                                                   target=target,

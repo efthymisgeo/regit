@@ -16,10 +16,11 @@ if __name__ == "__main__":
     n_points = 1000
     gamma_1 = 0.004
     gamma_2 = 0.0007
+    delay = 100
     probs = [start_prob, end_prob] 
     mul = MultiplicativeScheduler(probs, n_points)
     exp = ExponentialScheduler(probs, n_points, gamma_1)
-    lin = LinearScheduler(probs, n_points)
+    lin = LinearScheduler(probs, n_points, delay=delay)
     step = StepScheduler(probs, n_points)
     power = PowerScheduler(probs, n_points, gamma_2)
 
