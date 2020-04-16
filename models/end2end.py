@@ -59,9 +59,11 @@ def run_training(model,
         if drop_schedule_setup["prob_scheduler"] == "Lin":
             # this setup saturates at epoch peak epoch
             saturation_epoch = drop_schedule_setup["peak_epoch"]
+            delay_epochs = drop_schedule_setup["delay"] * epoch_steps
             p_schedule = \
                 LinearScheduler([0.0, p_drop],
-                                saturation_epoch * epoch_steps)
+                                saturation_epoch * epoch_steps,
+                                delay=delay_epochs)
         elif drop_schedule_setup["prob_scheduler"] == "Mul":
             saturation_epoch = 8
             p_schedule = \
