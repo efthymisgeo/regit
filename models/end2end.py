@@ -65,7 +65,8 @@ def run_training(model,
                                 saturation_epoch * epoch_steps,
                                 delay=delay_epochs)
         elif drop_schedule_setup["prob_scheduler"] == "Mul":
-            saturation_epoch = 8
+            import pdb; pdb.set_trace()
+            saturation_epoch = drop_schedule_setup["peak_epoch"]
             p_schedule = \
                 MultiplicativeScheduler([0.0, p_drop],
                                         saturation_epoch * epoch_steps)
