@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_condrop_batch_mul_0.001_50_80shallow",
+    "experiment_id": "_condrop_batch_mul_0.001_25_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -10,7 +10,7 @@
     "use_drop_schedule": {
         "prob_scheduler": "Mul",
         "p_drop": 0.5, 
-        "peak_epoch": 40, 
+        "peak_epoch": 25, 
         "use_inv_drop": true,
         "inv_strategy": "bernoulli",
         "track_history": false
