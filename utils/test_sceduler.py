@@ -20,10 +20,11 @@ if __name__ == "__main__":
     probs = [start_prob, end_prob] 
     mul = MultiplicativeScheduler(probs, n_points)
     exp = ExponentialScheduler(probs, n_points, gamma_1)
-    lin = LinearScheduler(probs, n_points, delay=delay)
+    lin = LinearScheduler(probs, n_points, delay=delay, f_osc=250, a_osc=0.1)
     step = StepScheduler(probs, n_points)
     power = PowerScheduler(probs, n_points, gamma_2)
 
+    print(lin.f_osc)
     # m_time = mul.time
     # e_time = exp.get_function()
     # l_time = lin.time

@@ -22,8 +22,11 @@ class Scheduler(object):
     should subclass it. All other subclasses should override ``step()``
     """
     def __init__(self):
-        self.t = 0 # timestep counter
+        self.t = 0  # timestep counter
         self.n_points = 0  # number of scheduler updates
+        self.t_osc = 0  # periodic osc timestep counter
+        self.f_osc = 0
+        self.delay = 0
 
     def f_schedule(self):
         raise NotImplementedError
@@ -34,11 +37,19 @@ class Scheduler(object):
         return scheduler_value
 
     def update_time(self):
+        """
+        Function which updates time for both the schduler and the oscillation
+        """
+        # update scheduler timescale
         if self.t < self.n_points - 1:
             self.t += 1
         else:
             # lock value at last timestep
             self.t = self.n_points - 1
+        
+        # update oscillation timescale
+        if self.f_osc != 0 and self.t >= self.delay:
+            self.t_osc = (self.t_osc + 1) % self.f_osc
     
     def get_prob(self):
         return self.f_schedule()
@@ -47,17 +58,23 @@ class Scheduler(object):
 class LinearScheduler(Scheduler):
     """
     A linear scheduler which is given a `start` and `end` value and draws
-    a line between them by interpolating `n_points` between them.
+    a line between them by interpolating `n_points` between them. Moreover the
+    class offers the ability of additing oscillating noise in the scheduler.
     """
-    def __init__(self, point, n_points, delay=0.0, eps=0.000001):
+    def __init__(self, point, n_points, delay=0.0, eps=0.000001,
+                 f_osc=0, a_osc=0.0):
         super(LinearScheduler, self).__init__()
         self.start = point[0]
         self.end = point[1]
         self.n_points = n_points
         self.eps = eps
         self.delay = delay
-        self.time = self.add_delay()        
-        self.t = 0
+        self.f_osc = f_osc
+        self.a_osc = a_osc
+        self.time = self.add_delay()
+        if a_osc != 0:
+            self.sin_osc = self.add_sinus()        
+        #self.t = 0
     
     def add_delay(self):
         """function which adds delay"""
@@ -66,21 +83,42 @@ class LinearScheduler(Scheduler):
             if self.n_points - self.delay <= 0:
                 raise ValueError("Delay exceeds total number of points")
             else:
-                time = np.linspace(self.start + self.eps,
-                                   self.end,
-                                   self.n_points - self.delay)
+                time = self._make_line(self.start + self.eps,
+                                       self.end,
+                                       self.n_points - self.delay)
             time = np.concatenate((pad, time), axis=0)
         else:
-            time = np.linspace(self.start + self.eps,
-                               self.end,
-                               self.n_points)
+            time = self._make_line(self.start + self.eps,
+                                   self.end,
+                                   self.n_points)
         return time
-        
+    
+    
+    @staticmethod
+    def _make_line(p_start, p_end, points):
+        """Function which contructs a line from starting point p_start and ends
+        at ending point p_end. The line is essentially an interpolation of
+        `points` inbetween the starting and the ending point.
+        """
+        return np.linspace(p_start, p_end, points)
+    
+    def add_sinus(self):
+        """
+        function which adds sinusodial oscillation with frequency f_osc and
+        amplitude a_osc on top of given curve. To avoid negative prob values 
+        we have taken the absolute value of the overall curve.
+        """
+        # sample f_osc points from a sinus with amp a_osc
+        return self.a_osc * np.sin(np.linspace(0, 2*np.pi, self.f_osc))
+
 
     def f_schedule(self, idx=None):
         if idx is None:
             idx = self.t
-        return self.time[idx]
+        out = self.time[idx]
+        if self.a_osc != 0 and self.t >= self.delay:
+            out = np.abs(out + self.sin_osc[self.t_osc])
+        return out
         
 
 class MultiplicativeScheduler(Scheduler):
