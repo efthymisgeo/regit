@@ -296,7 +296,11 @@ def train(model,
           inverted_strategy="importance",
           reset_counter=False,
           sampling_imp=50,
-          aggregate=True):
+          aggregate=True,
+          sample_batch=None,
+          sigma_attr=None,
+          sigma_input=None,
+          momentum=None):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -319,7 +323,16 @@ def train(model,
         reset_counter (bool): reset or not the switch counter at every epoch
         sampling_imp (list/int): int or list of ints which indicate the number
             of batches a single mask will be applied
-
+        aggregate (bool): a boolean variable which indicates if the importances
+            will be aggregated over the batch or not (one mask/multiple masks)
+        sample_batch (float): a float which specifies the amount of batch that
+            will be held for calculating the attribution
+        sigma_attr (float): a float which specifies the std of noise to be
+            added on top of the attribution
+        sigma_input (float): a float which specifies the std of noise to be
+            added on the input to "mislead" the attributions
+        momentum (float): momentum term to be added in the attribution
+            calculation
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
@@ -462,22 +475,33 @@ def train(model,
                             d1 = torch.clone(data)
                         
                         
-                        tmp_tensor = lc.attribute(d1,
-                                                  baselines=baseline,
-                                                  target=target,
-                                                  n_steps=25)
+                        tmp_tensor = \
+                            lc.attribute_noise(d1,
+                                               baselines=baseline,
+                                               target=target,
+                                               n_steps=25,
+                                               sample_batch=sample_batch,
+                                               sigma_attr=sigma_attr,
+                                               sigma_input=sigma_input,
+                                               momentum=momentum,
+                                               aggregate=aggregate)
                         
                         #torch.cuda.empty_cache()
 
                         #neuron_imp.append(torch.sum(lc.attribute(data,
                         #                 baselines=baseline, target=target),
                         #                 dim=0))
+                        
+                        
+                        ######################################################
+                        #####   UNCOMMENT FOLLOWING LINES for neuron_imp
+                        ######################################################
                         #print("sumed over batch importances")
-                        if aggregate:
-                            neuron_imp.append(torch.sum(tmp_tensor, dim=0))
-                        else:
-                            neuron_imp.append(tmp_tensor)
-                        #neuron_imp.append(tmp_tensor)
+                        #if aggregate:
+                        #    neuron_imp.append(torch.sum(tmp_tensor, dim=0))
+                        #else:
+                        #    neuron_imp.append(tmp_tensor)
+                        neuron_imp.append(tmp_tensor)
                         
                         #del tmp_tensor
                         

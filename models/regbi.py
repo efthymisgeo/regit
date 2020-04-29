@@ -14,6 +14,7 @@ from utils.config_loader import print_config
 from utils.opts import load_experiment_options
 from models.end2end import run_training
 from captum.attr import LayerConductance
+from utils.importance import Importance
 
 
 def check_directory_and_create(dir_path, exists_warning=False):
@@ -126,7 +127,9 @@ if __name__ == '__main__':
     save_path = os.path.join(exp_setup["experiment_folder"],
                              data_setup["name"],
                              exp_setup["experiment_id"])
-    
+
+    # attribution config values
+    attribute_setup = exp_setup.get("attribution", None)
 
     for i in range(runs):
         print("================== RUN {} ==================".format(i))
@@ -152,7 +155,7 @@ if __name__ == '__main__':
 
         if importance:
             attributor_list = \
-                [LayerConductance(model, model.fc[i]) 
+                [Importance(model, model.fc[i]) 
                     for i in range(len(fc_setup["fc_layers"])-1)]
         else:
             attributor_list = None
@@ -180,6 +183,7 @@ if __name__ == '__main__':
                                      exp_setup,
                                      model_setup,
                                      data_setup,
+                                     attribute_setup,
                                      attributor=attributor_list,
                                      ckpt_path=run_id)
         

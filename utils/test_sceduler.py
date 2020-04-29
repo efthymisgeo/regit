@@ -20,7 +20,8 @@ if __name__ == "__main__":
     probs = [start_prob, end_prob] 
     mul = MultiplicativeScheduler(probs, n_points)
     exp = ExponentialScheduler(probs, n_points, gamma_1)
-    lin = LinearScheduler(probs, n_points, delay=delay, f_osc=250, a_osc=0.1)
+    lin = LinearScheduler(probs, n_points, delay=delay)
+    lin2 = LinearScheduler(probs, n_points, delay=delay//2, f_osc=50, a_osc=0.1)
     step = StepScheduler(probs, n_points)
     power = PowerScheduler(probs, n_points, gamma_2)
 
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     m_time = []
     e_time = []
     l_time = []
+    l2_time = []
     s_time = []
     p_rime = []
     t = []
@@ -43,11 +45,13 @@ if __name__ == "__main__":
         m_time.append(mul.step())
         e_time.append(exp.step())
         l_time.append(lin.step())
+        l2_time.append(lin2.step())
         s_time.append(step.step())
 
     plt.plot(t, m_time)
     plt.plot(t, e_time)
     plt.plot(t, l_time)
+    plt.plot(t, l2_time)
     plt.savefig("schedulers",
                 bbox_inches='tight')
     import pdb; pdb.set_trace()

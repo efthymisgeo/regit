@@ -22,6 +22,7 @@ def run_training(model,
                  experiment_setup,
                  model_setup,
                  data_setup,
+                 attribute_setup,
                  attributor=[],
                  ckpt_path="checkpoints/MNIST"):
     """ # TODO add docstrings
@@ -60,10 +61,14 @@ def run_training(model,
             # this setup saturates at epoch peak epoch
             saturation_epoch = drop_schedule_setup["peak_epoch"]
             delay_epochs = drop_schedule_setup["delay"] * epoch_steps
+            f_osc = drop_schedule_setup.get('f_osc', 0.0)
+            a_osc = drop_schedule_setup.get('a_osc', 0.0)
             p_schedule = \
                 LinearScheduler([0.0, p_drop],
                                 saturation_epoch * epoch_steps,
-                                delay=delay_epochs)
+                                delay=delay_epochs,
+                                f_osc=f_osc,
+                                a_osc=a_osc)
         elif drop_schedule_setup["prob_scheduler"] == "Mul":
             saturation_epoch = drop_schedule_setup["peak_epoch"]
             p_schedule = \
@@ -137,6 +142,18 @@ def run_training(model,
         print(f"Using a single mask per batch")
     else:
         print(f"Using a mask per sample in every batch")
+
+    # get attribution setup params
+    if attribute_setup is None:
+        sample_batch, sigma_attr, sigma_input, momentum =\
+            None, None, None, None
+    else:
+        sample_batch = attribute_setup.get("sample_batch", None)
+        sigma_attr = attribute_setup.get("sigma_attr", None)
+        sigma_input = attribute_setup.get("sigma_input", None)
+        momentum = attribute_setup.get("momentum", None)
+
+    
         
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
@@ -157,7 +174,11 @@ def run_training(model,
                   inverted_strategy=inv_startegy,
                   reset_counter=reset_counter,
                   sampling_imp=sampling_imp,
-                  aggregate=aggregate)
+                  aggregate=aggregate,
+                  sample_batch=sample_batch,
+                  sigma_attr=sigma_attr,
+                  sigma_input=sigma_input,
+                  momentum=momentum)
         
         loss_dict["train"].extend(train_loss_list)
         acc_dict["train"].append(train_acc)
