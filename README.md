@@ -1,6 +1,6 @@
 # Add Fancy Title Here
 
-## Prerequisites
+## 1. Prerequisites
 ***
 ### Dependencies
 - Python Version >= 3.6
@@ -10,7 +10,7 @@
 ### Install Requirements
 > add a requirements.txt here etc
 
-## Repo Structure
+## 2. Repo Structure
 
 Below we describe the repo's main structure
 ***
@@ -57,7 +57,7 @@ The folder `configs` consists of three subfolders namely
 - `model`: specifies the model architecture
 - `experiment`: specifies the kind of experiment that will be carried out 
 
-## Training Models
+## 3. Training Models
 
 The command that should be used for training the models is of the following form.
 ```bash
