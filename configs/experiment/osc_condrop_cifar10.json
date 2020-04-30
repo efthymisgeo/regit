@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_condrop_delay_5_batch_lin_0.001_15_osc_250",
+    "experiment_id": "_osc_condrop_lin_5-15_0.001_280_0.1",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -10,8 +10,10 @@
     "use_drop_schedule": {
         "prob_scheduler": "Lin",
         "p_drop": 0.4,
-        "delay": 1, 
-        "peak_epoch": 15, 
+        "delay": 5, 
+        "peak_epoch": 15,
+        "f_osc": 280,
+        "a_osc": 0.1, 
         "use_inv_drop": true,
         "inv_strategy": "bernoulli",
         "track_history": false
@@ -38,10 +40,5 @@
     "cuda_device": "cuda:1",
     "save_model": true,
     "plain_drop": false,
-    "p_drop": 0.5,
-    "attribution":
-    {
-        "sample_batch": 0.5,
-        "momentum": 0.8
-    }
+    "p_drop": 0.5
 }
