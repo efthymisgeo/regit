@@ -14,7 +14,7 @@ add a requirements.txt here etc
 
 ### Bird's Eye View
 
-```bash
+```
 └── checkpoints
 └── configs
 └── data
@@ -38,7 +38,7 @@ add a requirements.txt here etc
 
 Each of the `checkpoints`, `data` and `experiments` folders have the following
 format
-```bash
+```
 └── <folder_name>
     ├── MNIST/
     ├── CIFAR/
@@ -57,7 +57,7 @@ The folder `configs` consists of three subfolders namely
 ## Training Models
 
 The command that should be used for training the models is of the following form.
-```python
+```bash
 python models/regbi.py \
 -m <path/to/model/conf> \
 -d <path/to/data/conf> \
@@ -65,6 +65,7 @@ python models/regbi.py \
 ```
 e.g
 
->`python models/regbi.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/osc_condrop_cifar10.json`
-
+>```bash
+>python models/regbi.py -m configs/model/layers-80sec_shallow.json -d configs/>dataset/cifar10.json -e configs/experiment/osc_condrop_cifar10.json
+```
 
