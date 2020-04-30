@@ -1,16 +1,19 @@
 # Add Fancy Title Here
 
 ## Prerequisites
-
+***
 ### Dependencies
 - Python Version >= 3.6
 - PyTorch Version >=
 - Captum Version >=
-
+***
 ### Install Requirements
-add a requirements.txt here etc
+> add a requirements.txt here etc
 
 ## Repo Structure
+
+Below we describe the repo's main structure
+***
 
 ### Bird's Eye View
 
@@ -46,7 +49,7 @@ format
     └── ImageNet/
 ```
 where each subfolder contains the corresponding checkopoint models, data and experiments respectivelly.
-
+***
 ### Configuration Files
 
 The folder `configs` consists of three subfolders namely
