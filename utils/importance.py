@@ -24,6 +24,7 @@ class Importance(LayerConductance):
                         sample_batch=None,
                         sigma_input=None,
                         sigma_attr=None,
+                        adapt_to_tensor=False,
                         momentum=None,
                         aggregate=True):
         """
@@ -60,7 +61,8 @@ class Importance(LayerConductance):
             baselines = baselines[keep_idx, :]
             target = target[keep_idx]
         if sigma_input is not None:
-            inputs = self.add_noise_tensor(inputs, sigma_input)
+            inputs = \
+                self.add_noise_tensor(inputs, sigma_input, adapt_to_tensor)
         
         att_new = \
             self.attribute(inputs,
@@ -78,7 +80,8 @@ class Importance(LayerConductance):
         
         if sigma_attr is not None:
             #print(f"Mean of tensor before is {torch.mean(att_new)}")
-            att_new = self.add_noise_tensor(att_new, sigma_attr)
+            att_new = \
+                self.add_noise_tensor(att_new, sigma_attr, adapt_to_tensor)
             #print(f"Mean of tensor after is {torch.mean(att_new)}")
         
         if momentum is not None:
@@ -114,8 +117,9 @@ class Importance(LayerConductance):
         Function which adds white noise to a tensor of zero mean and std
         """
         if adapt_to_tensor:
-            tens_std = torch.std(tensors)
-            std = std * tens_std
+            # adapt to tensor's mean value
+            tensor_mean_value = torch.mean(tensors).detach().cpu().numpy()
+            std = std * tensor_mean_value
         noise = tensors.data.new(tensors.size()).normal_(0.0, std)
         return tensors + noise
 

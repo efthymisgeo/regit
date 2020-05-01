@@ -296,10 +296,12 @@ def train(model,
           inverted_strategy="importance",
           reset_counter=False,
           sampling_imp=50,
+          n_steps=25,
           aggregate=True,
           sample_batch=None,
           sigma_attr=None,
           sigma_input=None,
+          adapt_to_tensor=False,
           momentum=None):
     """
     Function that trains the given model for an epoch and returns the 
@@ -322,7 +324,10 @@ def train(model,
         inverted_strategy (str): specifies the strategy to be used
         reset_counter (bool): reset or not the switch counter at every epoch
         sampling_imp (list/int): int or list of ints which indicate the number
-            of batches a single mask will be applied
+            of batches a single mask will be applied. In other words, indicates
+            the number of epochs that will be through until the next importance
+            calculation.
+        n_steps (int): number of interpolation steps
         aggregate (bool): a boolean variable which indicates if the importances
             will be aggregated over the batch or not (one mask/multiple masks)
         sample_batch (float): a float which specifies the amount of batch that
@@ -479,10 +484,11 @@ def train(model,
                             lc.attribute_noise(d1,
                                                baselines=baseline,
                                                target=target,
-                                               n_steps=25,
+                                               n_steps=n_steps,
                                                sample_batch=sample_batch,
                                                sigma_attr=sigma_attr,
                                                sigma_input=sigma_input,
+                                               adapt_to_tensor=adapt_to_tensor,
                                                momentum=momentum,
                                                aggregate=aggregate)
                         

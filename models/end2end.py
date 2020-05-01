@@ -147,11 +147,15 @@ def run_training(model,
     if attribute_setup is None:
         sample_batch, sigma_attr, sigma_input, momentum =\
             None, None, None, None
+        n_steps = 25
+        adapt_to_tensor = False
     else:
         sample_batch = attribute_setup.get("sample_batch", None)
+        n_steps = attribute_setup.get("n_steps", 25)
         sigma_attr = attribute_setup.get("sigma_attr", None)
         sigma_input = attribute_setup.get("sigma_input", None)
         momentum = attribute_setup.get("momentum", None)
+        adapt_to_tensor = attribute_setup.get("adapt_to_tensor", False)
 
     
         
@@ -175,9 +179,11 @@ def run_training(model,
                   reset_counter=reset_counter,
                   sampling_imp=sampling_imp,
                   aggregate=aggregate,
+                  n_steps=n_steps,
                   sample_batch=sample_batch,
                   sigma_attr=sigma_attr,
                   sigma_input=sigma_input,
+                  adapt_to_tensor=adapt_to_tensor,
                   momentum=momentum)
         
         loss_dict["train"].extend(train_loss_list)

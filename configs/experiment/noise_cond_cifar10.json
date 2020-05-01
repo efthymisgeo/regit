@@ -1,0 +1,50 @@
+{
+    "model_name": "CNN2D",
+    "experiment_id": "_bsample_condrop_lin_5-15_0.001_5runs",
+    "imp_sampling": 1,
+    "checkpoint_folder": "checkpoints",
+    "experiment_folder": "experiments",
+    "regularization": true,
+    "importance": true,
+    "aggregate": true,
+    "use_drop_schedule": {
+        "prob_scheduler": "Lin",
+        "p_drop": 0.5,
+        "delay": 1, 
+        "peak_epoch": 15,
+        "f_osc": 0.0,
+        "a_osc": 0.0, 
+        "use_inv_drop": true,
+        "inv_strategy": "bernoulli",
+        "track_history": false
+    },
+    "mixout": false,
+    "runs": 5,
+    "n_steps": 25,
+    "batch_size": 64,
+    "test_batch_size": 1000,
+    "valid_size": 0.25,
+    "patience": 30,
+    "epochs": 500,
+    "weught_decay": 0.0,
+    "optimization":
+    {
+        "optimizer": "SGD",
+        "lr": 0.001,
+        "momentum": 0.9,
+        "scheduling": false,
+        "wait": 10,
+        "factor": 0.5
+    },
+    "use_cuda": true,
+    "cuda_device": "cuda:1",
+    "save_model": true,
+    "plain_drop": false,
+    "p_drop": 0.5,
+    "attribution":
+    {
+        "sigma_attr": 0.01,
+        "adapt_to_tensor": true,
+        "n_steps": 20
+    }
+}
