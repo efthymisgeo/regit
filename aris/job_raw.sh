@@ -43,5 +43,7 @@ module load pytorch/1.3.1
 module load slp/1.3.1
 
 ## RUN YOUR PROGRAM ##
-cd ..
+pwd
+cd .
+pwd
 srun python models/regbi.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/plain_cifar10.json
