@@ -704,6 +704,7 @@ class CNN2D(nn.Module):
         #import pdb; pdb.set_trace()
         # apply regularization
         if self.regularization:
+            #import pdb; pdb.set_trace()
             for i in range(self.n_fc_layers -1):
                 if self.training:
                     out = F.relu(self.fc[i](out))
@@ -719,6 +720,7 @@ class CNN2D(nn.Module):
                     out = self.fc[i](out)
                     out = F.relu(out)
         elif self.add_dropout:
+            import pdb; pdb.set_trace()
             # original dropout implemetnation
             for i in range(self.n_fc_layers - 1):
                 if self.training:
@@ -730,7 +732,9 @@ class CNN2D(nn.Module):
                     # inference branch
                     out = F.relu(self.fc[i](out))
         else:
-            raise ValueError("Neither custom nor dropout implementaion")
+            for i in range(self.n_fc_layers - 1):
+                out = F.relu(self.fc[i](out))
+            #raise ValueError("Neither custom nor dropout implementaion")
                 
         out = self.fc[-1](out)
         return F.log_softmax(out, dim=1)

@@ -43,7 +43,7 @@ def run_training(model,
     else:
         raise NotImplementedError("Not a valid optimizer")
 
-    use_optim_scheduler = optim_setup["scheduling"]
+    use_optim_scheduler = optim_setup.get("scheduling", False)
     if use_optim_scheduler:
         print("Adding ReduceLROnPlateu Scheduler")
         lr_scheduler = \
@@ -137,7 +137,7 @@ def run_training(model,
         sampling_imp = 1
     print(f"Sampling Neuron Importance per {sampling_imp} batces")
 
-    aggregate = experiment_setup["aggregate"]
+    aggregate = experiment_setup.get("aggregate", True)
     if aggregate:
         print(f"Using a single mask per batch")
     else:
