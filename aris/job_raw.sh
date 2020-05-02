@@ -7,9 +7,9 @@
 #                                  #
 ####################################
 
-#SBATCH --job-name=test_job    # DO NOT FORGET TO CHANGE THIS
-#SBATCH --output=logs/test_job.%j.out # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
-#SBATCH --error=logs/test_job.%j.err # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
+#SBATCH --job-name=raw-small    # DO NOT FORGET TO CHANGE THIS
+#SBATCH --output=logs/raw-small.%j.out # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
+#SBATCH --error=logs/raw-small.%j.err # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
 #SBATCH --ntasks=1     # How many times the command will run. Leave this to 1 unless you know what you are doing
 #SBATCH --nodes=1     # The task will break in so many nodes. Use this if you need many GPUs
 #SBATCH --gres=gpu:1 # GPUs per node to be allocated
@@ -19,8 +19,6 @@
 #SBATCH --mem=8G   # memory to be allocated per NODE
 #SBATCH --partition=gpu    # gpu: Job will run on one or more of the nodes in gpu partition. ml: job will run on the ml node
 #SBATCH --account=pa181004    # DO NOT CHANGE THIS
-
-cd ..
 
 export I_MPI_FABRICS=shm:dapl
 
@@ -44,9 +42,6 @@ module load python/3.6.5
 module load pytorch/1.3.1
 module load slp/1.3.1
 
-
 ## RUN YOUR PROGRAM ##
-srun python models/regbi.py \
--m configs/model/layers-80sec_shallow.json \
--d configs/dataset/cifar10.json \
--e configs/experiment/aris/plain_cifar10.json
+cd ..
+srun python models/regbi.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/plain_cifar10.json
