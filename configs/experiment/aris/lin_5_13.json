@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_small_condrop_lin_5_10_0.001_10runs",
+    "experiment_id": "_small_condrop_lin_5_13_0.001_10runs",
     "imp_sampling": 1,
     "data_folder": "/work2/pa18/geopar/efthygeo/data",
     "checkpoint_folder": "/work2/pa18/geopar/efthygeo/checkpoints",
@@ -12,7 +12,7 @@
         "prob_scheduler": "Lin",
         "p_drop": 0.5,
         "delay": 5, 
-        "peak_epoch": 10, 
+        "peak_epoch": 13, 
         "use_inv_drop": true,
         "inv_strategy": "bernoulli",
         "track_history": false
