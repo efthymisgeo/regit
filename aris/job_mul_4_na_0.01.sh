@@ -47,4 +47,4 @@ cd .
 srun python models/regbi.py \
 -m configs/model/layers-80sec_shallow.json \
 -d configs/dataset/cifar10.json \
--e configs/experiment/aris/mul_4_0.01.json
+-e configs/experiment/aris/mul_4_na_0.01.json

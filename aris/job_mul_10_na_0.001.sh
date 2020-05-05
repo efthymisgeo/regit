@@ -7,9 +7,9 @@
 #                                  #
 ####################################
 
-#SBATCH --job-name=mul-s-4-na-0.1    # DO NOT FORGET TO CHANGE THIS
-#SBATCH --output=logs/mul-s-4-na-0.1.%j.out # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
-#SBATCH --error=logs/mul-s-4-na-0.1.%j.err # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
+#SBATCH --job-name=mul-s-10-na-0.001    # DO NOT FORGET TO CHANGE THIS
+#SBATCH --output=logs/mul-s-10-na-0.001.%j.out # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
+#SBATCH --error=logs/mul-s-10-na-0.001.%j.err # DO NOT FORGET TO CHANGE THIS. the job stdout will be dumped here. (%j expands to jobId).
 #SBATCH --ntasks=1     # How many times the command will run. Leave this to 1 unless you know what you are doing
 #SBATCH --nodes=1     # The task will break in so many nodes. Use this if you need many GPUs
 #SBATCH --gres=gpu:1 # GPUs per node to be allocated
@@ -47,4 +47,4 @@ cd .
 srun python models/regbi.py \
 -m configs/model/layers-80sec_shallow.json \
 -d configs/dataset/cifar10.json \
--e configs/experiment/aris/mul_4_na_0.1.json
+-e configs/experiment/aris/mul_10_na_0.001.json
