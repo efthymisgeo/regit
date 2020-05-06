@@ -118,8 +118,10 @@ class Importance(LayerConductance):
         """
         if adapt_to_tensor:
             # adapt to tensor's mean value
-            tensor_mean_value = torch.mean(tensors).detach().cpu().numpy()
-            std = std * tensor_mean_value
+            #tensor_mean_value = torch.mean(tensors).detach().cpu().numpy()
+            # adapt to tensor's std values
+            tensor_std_value = torch.std(tensors).detach().cpu().numpy()
+            std = std * tensor_std_value
         noise = tensors.data.new(tensors.size()).normal_(0.0, std)
         return tensors + noise
 
