@@ -1,0 +1,46 @@
+{
+    "model_name": "CNN2D",
+    "experiment_id": "_small_mul_4_mom_0.1_10runs",
+    "imp_sampling": 1,
+    "data_folder": "/work2/pa18/geopar/efthygeo/data",
+    "checkpoint_folder": "/work2/pa18/geopar/efthygeo/checkpoints",
+    "experiment_folder": "/work2/pa18/geopar/efthygeo/experiments",
+    "regularization": true,
+    "importance": true,
+    "aggregate": true,
+    "use_drop_schedule": {
+        "prob_scheduler": "Mul",
+        "p_drop": 0.5, 
+        "peak_epoch": 4, 
+        "use_inv_drop": true,
+        "inv_strategy": "bernoulli",
+        "track_history": false
+    },
+    "mixout": false,
+    "runs": 10,
+    "n_steps": 25,
+    "batch_size": 64,
+    "test_batch_size": 1000,
+    "valid_size": 0.25,
+    "patience": 30,
+    "epochs": 500,
+    "weught_decay": 0.0,
+    "optimization":
+    {
+        "optimizer": "SGD",
+        "lr": 0.001,
+        "momentum": 0.9,
+        "scheduling": false,
+        "wait": 10,
+        "factor": 0.5
+    },
+    "use_cuda": true,
+    "cuda_device": "cuda",
+    "save_model": true,
+    "plain_drop": false,
+    "p_drop": 0.5,
+    "attribution":
+    {
+        "momentum": 0.1
+    }
+}
