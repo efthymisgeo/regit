@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_small_condrop_batch_mul_22_0.001_10runs",
+    "experiment_id": "_medium_condrop_batch_mul_22_0.001_10runs",
     "imp_sampling": 1,
     "data_folder": "/work2/pa18/geopar/efthygeo/data",
     "checkpoint_folder": "/work2/pa18/geopar/efthygeo/checkpoints",
@@ -22,7 +22,7 @@
     "batch_size": 64,
     "test_batch_size": 1000,
     "valid_size": 0.25,
-    "patience": 30,
+    "patience": 10,
     "epochs": 500,
     "weught_decay": 0.0,
     "optimization":
