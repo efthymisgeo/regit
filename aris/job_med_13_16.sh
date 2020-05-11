@@ -14,7 +14,7 @@
 #SBATCH --nodes=1     # Number of nodes requested
 #SBATCH --ntasks-per-node=2     # Tasks per node
 #SBATCH --cpus-per-task=1     # Threads per task
-#SBATCH --time=2:00:00   # walltime
+#SBATCH --time=24:00:00   # walltime
 #SBATCH --mem=20G   # memory per NODE
 #SBATCH --gres=gpu:2 # GPUs per node to be allocated
 #SBATCH --partition=gpu    # Partition
