@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 import sys
 import os
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import euclidean_distances
 sys.path.insert(0, os.path.join(os.path.dirname(
@@ -302,7 +304,8 @@ def train(model,
           sigma_attr=None,
           sigma_input=None,
           adapt_to_tensor=False,
-          momentum=None):
+          momentum=None,
+          per_sample_noise=False):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -338,11 +341,22 @@ def train(model,
             added on the input to "mislead" the attributions
         momentum (float): momentum term to be added in the attribution
             calculation
+        per_sample_noise (bool): when true the noise is added per sample rather
+            than per batch, enforcing the use of a different mask for every
+            sample
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
         prob_value (float): list of dropout probabilities
     """
+    ###########################################################################
+    #### experimental mode: probabilistic, COUNT_SWITCHES
+    ###########################################################################
+    probabilistic = False
+    COUNT_SWITCHES = False  # handles the use or not of the `update_sw_stats`
+    ###########################################################################
+    #### tested mode
+    ###########################################################################
     USE_INVERTED_DROP_STRATEGY = use_inverted_strategy      
     INVERTED_DROP_STRATEGY = inverted_strategy
     RESET_COUNTER = reset_counter
@@ -490,7 +504,8 @@ def train(model,
                                                sigma_input=sigma_input,
                                                adapt_to_tensor=adapt_to_tensor,
                                                momentum=momentum,
-                                               aggregate=aggregate)
+                                               aggregate=aggregate,
+                                               per_sample_noise=per_sample_noise)
                         
                         #torch.cuda.empty_cache()
 
@@ -515,9 +530,28 @@ def train(model,
                         #gc.collect()
                         #torch.cuda.empty_cache()
                         #import pdb; pdb.set_trace()
-                model.update_mask(neuron_imp, p_drop, mix_rates,
-                                  aggregate, batch_size)
-                model.update_sw_stats()
+                
+
+                ###############################################################
+                #### probabilistic is at experimental mode
+                ###############################################################
+                if batch_idx == 3 and probabilistic:
+                    model._plot_importance(neuron_imp, epoch, batch_idx)
+                
+                model.update_mask(neuron_imp,
+                                  p_drop,
+                                  mix_rates,
+                                  aggregate,
+                                  batch_size,
+                                  probabilistic=probabilistic)
+                
+                if COUNT_SWITCHES:
+                    model.update_sw_stats()
+                
+                # added for debugging purposes
+                if (batch_idx == 3) and probabilistic:
+                    model._count_prob_switches()
+                
                 if USE_INVERTED_DROP_STRATEGY:
                     model.update_inv_drop_factor(strategy=INVERTED_DROP_STRATEGY)
                 model.train()

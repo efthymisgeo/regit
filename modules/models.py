@@ -6,6 +6,9 @@ import collections
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from scipy.special import softmax
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from configs.config import Config
@@ -386,12 +389,106 @@ class CNN2D(nn.Module):
             #         except:
             #             print(k)
 
+    
+    def pdfize(self, importance, pdf_method="min_max"):
+        """pdfizes a given vector with a normalization method
+        """
+        for i, layer_imp in enumerate(importance):
+            if pdf_method == "min_max":
+                # 1. watch out denominator not normalizing to one
+                # 2. watch out nan in importances
+                importance[i] = \
+                    (layer_imp - min(layer_imp)) / (max(layer_imp) - min(layer_imp) + 1e-5)
+            else:
+                importance[i] = torch.exp(layer_imp)
+                # TODO
+                pass
+            # resctrict values in probability space
+            # this might be a result of numerical errors
+            importance[i] = torch.clamp(importance[i], min=0.0, max=1.0)
+        return importance
+
+    def _count_prob_switches(self):
+        """for debugging purposes
+        """
+        print(f"current dropout rate is {self.p_drop}")
+        for i, mask in enumerate(self.drop_masks):
+            batch_size = mask.size(0)
+            N = mask.size(1)
+            total_sum = torch.sum(mask) / batch_size
+            perc = torch.round(total_sum / N)
+            print(f"for layer {i} with size {N} we are expecting about {torch.round(total_sum)} switches which is the {perc} % percentage")
+    
+    def _plot_importance(self, importance, epoch, batch_idx):
+        """for debugging purposes
+        """
+        for i, imp in enumerate(importance):
+            method_list = []
+            x = imp.detach().cpu().numpy()
+            # apply various possible transformations
+            # normalization
+            mu = np.mean(x)
+            sigma = np.std(x)
+            x_normal = (x - mu) / (sigma + 1e-5)
+            method_list.append(x_normal)
+            # log
+            x_log = np.log(1+x_normal)
+            method_list.append(x_log)
+            # sigmoid
+            x_sigmoid = 1 / (1 + np.exp(-x))
+            method_list.append(x_sigmoid)
+            # expnormal
+            x_expnormal = np.exp(x_normal)
+            method_list.append(x_expnormal)
+            # minmax
+            x_minmax = (x - min(x)) / (max(x) - min(x))
+            method_list.append(x_minmax)
+            # softmax
+            x_softmax = softmax(x)
+            method_list.append(x_softmax)
+            num_bins = 64
+            # sigmoidnorm & sigmoid-0.5
+            x_sigmoidnorm = 1 / (1 + np.exp(-x_normal))
+            method_list.append(x_sigmoidnorm)
+            x_sigmoid_2 = 1 / (1 + np.exp(-x*0.5))
+            method_list.append(x_sigmoid_2)
+            # the histogram of the data
+            order = ["normal",
+                     "log",
+                     "sigmoid",
+                     "expnorm",
+                     "minmax",
+                     "softmax",
+                     "sigmoid_norm",
+                     "sigmoid_0.5"]
+            for method, x_val in zip(order, method_list):
+                fig, ax = plt.subplots()
+                n, bins, patches = plt.hist(x_val,
+                                            num_bins, #normed=1,
+                                            facecolor='blue',
+                                            alpha=0.5)
+
+                # add a 'best fit' line
+                #y = mlab.normpdf(bins, mu, sigma)
+                #plt.plot(bins, y, 'r--')
+                plt.xlabel('Neuron Bins')
+                plt.ylabel('Probability')
+                
+                # Tweak spacing to prevent clipping of ylabel
+                plt.subplots_adjust(left=0.15)
+                title = f"imp_layer_{i}_epoch_" + str(epoch) + "_batch_" + str(batch_idx) + ".png"
+                plt.savefig("imp_distr/" + method + "/" + title)
+                plt.close()
+    
     def update_mask(self,
                     importance=None,
                     p_drop=None,
                     mix_rates=False,
                     aggregate=True,
-                    batch_size=None):
+                    batch_size=None,
+                    probabilistic=False,
+                    pdf_method="min_max",
+                    drop_method="drop-mask"):
         """
         Updates mask based on some criterion
         Function which handles different dropout scenarios. Namely
@@ -405,6 +502,17 @@ class CNN2D(nn.Module):
             p_drop (float or tuple of floats): value also the dropout rate 
                 in the plain dropout case
             mix_rates (bool): use mixing dropout rates (case 3)
+            probabilistic (bool): when True the attribution function returns
+                a pdf over the neurons based on their importance
+            pdf_method (str): indicates which normalization method should be
+                used 'min_max', 'softmax'
+            drop_method (str): specifies how the prob vector will be exploited.
+                There are two available choices namely 'drop-mask' and 
+                'top-mask'. 'drop-mask' defines the case where an additional
+                random drop mask is applied on top of the attribution vector,
+                while 'top-mask' defines the bimodal approach where the top-k
+                units are being set to their probabilistic value and
+                normalized in the [0.5, 1] value (this requires some thought) 
         """
         # check for existing dropout prob
         if p_drop is None:
@@ -414,28 +522,46 @@ class CNN2D(nn.Module):
         # clear mask list
         self.drop_masks = []
 
-        if importance is None:
-            # corresponds to dropout case
-            self.init_mask(trick="bernoulli", p_drop=p_drop,
-                           aggregate=aggregate, batch_size=batch_size)
-        elif mix_rates:
-            plain_drop_p = p_drop[0]
-            intel_drop_p = p_drop[1]
-            if plain_drop_p == 0.0:
-                # intel mode only
-                #print(f"only intel mode is on")
+        
+        # choose between deterministic and probabilistic variant of the method
+        if probabilistic:
+            importance = self.pdfize(importance, pdf_method="min_max")
+            if drop_method == "drop-mask":
+                for i, layer_imp in enumerate(importance):
+                    rand = torch.ones(batch_size,
+                                      self.fc_layer_list[i]).to(self.device)
+                        # (1 - p_drop) * torch.ones(batch_size,
+                        #                     self.fc_layer_list[i]).to(self.device)
+                    layer_imp = torch.mul(layer_imp, rand)
+                    self.drop_masks.append(torch.bernoulli(layer_imp))
+        else: 
+            if importance is None:
+                # corresponds to dropout case
+                self.init_mask(trick="bernoulli",
+                               p_drop=p_drop,
+                               aggregate=aggregate,
+                               batch_size=batch_size)
+            elif mix_rates:
+                plain_drop_p = p_drop[0]
+                intel_drop_p = p_drop[1]
+                if plain_drop_p == 0.0:
+                    # intel mode only
+                    #print(f"only intel mode is on")
+                    self.smooth_importance(importance,
+                                           method="mean",
+                                           p_drop=intel_drop_p,
+                                           aggregate=aggregate,
+                                           batch_size=batch_size)
+                else:
+                    # both modes active
+                    #print(f"both modes are active")
+                    self.mixout(importance, plain_drop_p, intel_drop_p)
+            else:
                 self.smooth_importance(importance,
                                        method="mean",
-                                       p_drop=intel_drop_p,
+                                       p_drop=p_drop,
                                        aggregate=aggregate,
                                        batch_size=batch_size)
-            else:
-                # both modes active
-                #print(f"both modes are active")
-                self.mixout(importance, plain_drop_p, intel_drop_p)
-        else:
-            self.smooth_importance(importance, method="mean", p_drop=p_drop,
-                                    aggregate=aggregate, batch_size=batch_size)
                     
     def apply_mask(self, x, mask=None, idx=0):
         """

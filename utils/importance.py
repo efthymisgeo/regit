@@ -26,7 +26,9 @@ class Importance(LayerConductance):
                         sigma_attr=None,
                         adapt_to_tensor=False,
                         momentum=None,
-                        aggregate=True):
+                        aggregate=True,
+                        per_sample_noise=False
+                        ):
         """
         Function which adds noise in the attribution itslef. This might seem
         stupid at first sight but one should consider that we are using this
@@ -51,7 +53,10 @@ class Importance(LayerConductance):
             momentum(float, optional): a float in (0,1) which is being used to
                 keep track of an exponentially moving average
             aggregate (bool): specifies if the attribution will be made for
-                every sample in the batch (False) or for the whole batch (True)  
+                every sample in the batch (False) or for the whole batch (True)
+            per_sample_noise (bool): when True a different noise vector is being
+                added in every sample to enforce the use of different masks
+                in the same batch 
         """
         # sample tesnor for faster and noisier approximation
         if sample_batch is not None:
@@ -62,7 +67,11 @@ class Importance(LayerConductance):
             target = target[keep_idx]
         if sigma_input is not None:
             inputs = \
-                self.add_noise_tensor(inputs, sigma_input, adapt_to_tensor)
+                self.add_noise_tensor(inputs,
+                                      sigma_input,
+                                      adapt_to_tensor,
+                                      per_sample_noise,
+                                      inputs.size())
         
         att_new = \
             self.attribute(inputs,
@@ -73,6 +82,8 @@ class Importance(LayerConductance):
                            internal_batch_size=internal_batch_size,
                            return_convergence_delta=return_convergence_delta)
         
+        att_orig_size = att_new.size()
+        
         if aggregate:
             # sum over all samples in the batch and extract a single importance
             # vector representation for the whole batch
@@ -80,8 +91,16 @@ class Importance(LayerConductance):
         
         if sigma_attr is not None:
             #print(f"Mean of tensor before is {torch.mean(att_new)}")
+            #print(f"Old size is {att_new.size()}")
             att_new = \
-                self.add_noise_tensor(att_new, sigma_attr, adapt_to_tensor)
+                self.add_noise_tensor(att_new,
+                                      sigma_attr,
+                                      adapt_to_tensor,
+                                      per_sample_noise,
+                                      att_orig_size)
+
+            #print(f"new size is {att_new.size()}")
+            #import pdb; pdb.set_trace()
             #print(f"Mean of tensor after is {torch.mean(att_new)}")
         
         if momentum is not None:
@@ -112,7 +131,10 @@ class Importance(LayerConductance):
         return keep_idx
     
     @staticmethod
-    def add_noise_tensor(tensors, std, adapt_to_tensor=False):
+    def add_noise_tensor(tensors, std,
+                         adapt_to_tensor=False,
+                         per_sample_noise=False,
+                         tensor_size=None):
         """
         Function which adds white noise to a tensor of zero mean and std
         """
@@ -122,7 +144,10 @@ class Importance(LayerConductance):
             # adapt to tensor's std values
             tensor_std_value = torch.std(tensors).detach().cpu().numpy()
             std = std * tensor_std_value
-        noise = tensors.data.new(tensors.size()).normal_(0.0, std)
+        if per_sample_noise:
+            noise = tensors.data.new(tensor_size).normal_(0.0, std)
+        else:
+            noise = tensors.data.new(tensors.size()).normal_(0.0, std)
         return tensors + noise
 
     def update_momentum(self, new_update, momentum):
