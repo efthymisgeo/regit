@@ -44,6 +44,6 @@ module load slp/1.3.1
 
 ## RUN YOUR PROGRAM ##
 #nvidia-smi > gpus
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_13_na_0.25_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_13_na_0.25_${SLURM_JOB_ID}.err  python models/regbi.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/mul_13_na_0.25.json &
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_16_na_0.25_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_16_na_0.25_${SLURM_JOB_ID}.err python models/regbi.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/mul_16_na_0.25.json & 
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_19_na_0.5_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_19_na_0.5_${SLURM_JOB_ID}.err  python models/regbi.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/mul_19_na_0.5.json &
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_22_na_0.5_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_22_na_0.5_${SLURM_JOB_ID}.err python models/regbi.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/mul_22_na_0.5.json & 
 wait
