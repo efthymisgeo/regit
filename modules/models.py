@@ -398,11 +398,16 @@ class CNN2D(nn.Module):
                 # 1. watch out denominator not normalizing to one
                 # 2. watch out nan in importances
                 importance[i] = \
-                    (layer_imp - min(layer_imp)) / (max(layer_imp) - min(layer_imp) + 1e-5)
+                    (layer_imp - torch.min(layer_imp)) / (torch.max(layer_imp) - torch.min(layer_imp) + 1e-5)
+            elif pdf_method == "sigmoid_normal":
+                mu = torch.mean(layer_imp)
+                std = torch.std(layer_imp)
+                importance[i] = (layer_imp - mu) / (std + 1e-5)
+            elif pdf_method == "sigmoid":
+                importance[i] = 1 / (1 + torch.exp(-layer_imp))
             else:
-                importance[i] = torch.exp(layer_imp)
-                # TODO
-                pass
+                raise NotImplementedError
+
             # resctrict values in probability space
             # this might be a result of numerical errors
             importance[i] = torch.clamp(importance[i], min=0.0, max=1.0)
@@ -414,10 +419,11 @@ class CNN2D(nn.Module):
         print(f"current dropout rate is {self.p_drop}")
         for i, mask in enumerate(self.drop_masks):
             batch_size = mask.size(0)
-            N = mask.size(1)
-            total_sum = torch.sum(mask) / batch_size
-            perc = torch.round(total_sum / N)
-            print(f"for layer {i} with size {N} we are expecting about {torch.round(total_sum)} switches which is the {perc} % percentage")
+            dim = mask.size(1)
+            total_sum = (dim * batch_size) - torch.sum(mask)
+            perc = torch.round((total_sum / (dim * batch_size)) * 100 )
+            print(f"for layer {i} with size {dim} we are expecting about {total_sum} switches which is the {perc} % percentage")
+            #import pdb; pdb.set_trace()
     
     def _plot_importance(self, importance, epoch, batch_idx):
         """for debugging purposes
@@ -525,15 +531,21 @@ class CNN2D(nn.Module):
         
         # choose between deterministic and probabilistic variant of the method
         if probabilistic:
+            #print(importance)
             importance = self.pdfize(importance, pdf_method="min_max")
+            #print(importance)
             if drop_method == "drop-mask":
                 for i, layer_imp in enumerate(importance):
                     rand = torch.ones(batch_size,
                                       self.fc_layer_list[i]).to(self.device)
                         # (1 - p_drop) * torch.ones(batch_size,
                         #                     self.fc_layer_list[i]).to(self.device)
-                    layer_imp = torch.mul(layer_imp, rand)
-                    self.drop_masks.append(torch.bernoulli(layer_imp))
+                    #print(layer_imp)
+                    layer_imp_updated = torch.mul(1 - layer_imp, rand)
+                    #print(layer_imp_updated)
+                    layer_mask = torch.bernoulli(layer_imp_updated)
+                    #print(layer_mask)
+                    self.drop_masks.append(layer_mask)
         else: 
             if importance is None:
                 # corresponds to dropout case

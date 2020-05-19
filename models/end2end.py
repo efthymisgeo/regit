@@ -150,6 +150,7 @@ def run_training(model,
         n_steps = 25
         adapt_to_tensor = False
         per_sample_noise = False
+        respect_attr=False
     else:
         sample_batch = attribute_setup.get("sample_batch", None)
         n_steps = attribute_setup.get("n_steps", 25)
@@ -158,6 +159,7 @@ def run_training(model,
         momentum = attribute_setup.get("momentum", None)
         adapt_to_tensor = attribute_setup.get("adapt_to_tensor", False)
         per_sample_noise = attribute_setup.get("per_sample_noise", False)
+        respect_attr = attribute_setup.get("respect_attr", False)
 
     
         
@@ -187,7 +189,8 @@ def run_training(model,
                   sigma_input=sigma_input,
                   adapt_to_tensor=adapt_to_tensor,
                   momentum=momentum,
-                  per_sample_noise=per_sample_noise)
+                  per_sample_noise=per_sample_noise,
+                  respect_attr=respect_attr)
         
         loss_dict["train"].extend(train_loss_list)
         acc_dict["train"].append(train_acc)

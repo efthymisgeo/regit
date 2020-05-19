@@ -305,7 +305,8 @@ def train(model,
           sigma_input=None,
           adapt_to_tensor=False,
           momentum=None,
-          per_sample_noise=False):
+          per_sample_noise=False,
+          respect_attr=False):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -344,6 +345,11 @@ def train(model,
         per_sample_noise (bool): when true the noise is added per sample rather
             than per batch, enforcing the use of a different mask for every
             sample
+        respect_attr (bool): when true the std of the noise to be added will be
+            proportional to the std of the attribution for the given unit. This
+            intuitively means that we "respect" the unit's importance by
+            leaving it unchanged when the std is small and disturb it a lot
+            when it std is high.
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
@@ -353,6 +359,7 @@ def train(model,
     #### experimental mode: probabilistic, COUNT_SWITCHES
     ###########################################################################
     probabilistic = False
+    plot_dist = False
     COUNT_SWITCHES = False  # handles the use or not of the `update_sw_stats`
     ###########################################################################
     #### tested mode
@@ -505,7 +512,8 @@ def train(model,
                                                adapt_to_tensor=adapt_to_tensor,
                                                momentum=momentum,
                                                aggregate=aggregate,
-                                               per_sample_noise=per_sample_noise)
+                                               per_sample_noise=per_sample_noise,
+                                               respect_attr=respect_attr)
                         
                         #torch.cuda.empty_cache()
 
@@ -535,7 +543,7 @@ def train(model,
                 ###############################################################
                 #### probabilistic is at experimental mode
                 ###############################################################
-                if batch_idx == 3 and probabilistic:
+                if batch_idx == 3 and probabilistic and plot_dist:
                     model._plot_importance(neuron_imp, epoch, batch_idx)
                 
                 model.update_mask(neuron_imp,

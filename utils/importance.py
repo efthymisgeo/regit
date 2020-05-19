@@ -27,7 +27,8 @@ class Importance(LayerConductance):
                         adapt_to_tensor=False,
                         momentum=None,
                         aggregate=True,
-                        per_sample_noise=False
+                        per_sample_noise=False,
+                        respect_attr=False
                         ):
         """
         Function which adds noise in the attribution itslef. This might seem
@@ -57,6 +58,9 @@ class Importance(LayerConductance):
             per_sample_noise (bool): when True a different noise vector is being
                 added in every sample to enforce the use of different masks
                 in the same batch 
+            respect_attr (bool): models the units attribution as gaussian distr
+                by respecting its mean and var over the batch and then randomly
+                samples from this distr to get the noise that will be added
         """
         # sample tesnor for faster and noisier approximation
         if sample_batch is not None:
@@ -84,10 +88,16 @@ class Importance(LayerConductance):
         
         att_orig_size = att_new.size()
         
+        std_per_neuron = None
+        if respect_attr:
+            std_per_neuron = torch.std(att_new, dim=0)
+        
         if aggregate:
             # sum over all samples in the batch and extract a single importance
             # vector representation for the whole batch
-            att_new = torch.sum(att_new, dim=0)
+            # att_new = torch.sum(att_new, dim=0)
+            att_new = torch.mean(att_new, dim=0)
+            #import pdb; pdb.set_trace()
         
         if sigma_attr is not None:
             #print(f"Mean of tensor before is {torch.mean(att_new)}")
@@ -97,7 +107,8 @@ class Importance(LayerConductance):
                                       sigma_attr,
                                       adapt_to_tensor,
                                       per_sample_noise,
-                                      att_orig_size)
+                                      att_orig_size,
+                                      std_per_neuron)
 
             #print(f"new size is {att_new.size()}")
             #import pdb; pdb.set_trace()
@@ -134,20 +145,47 @@ class Importance(LayerConductance):
     def add_noise_tensor(tensors, std,
                          adapt_to_tensor=False,
                          per_sample_noise=False,
-                         tensor_size=None):
+                         tensor_size=None,
+                         std_per_item=None):
         """
         Function which adds white noise to a tensor of zero mean and std
         """
         if adapt_to_tensor:
             # adapt to tensor's mean value
-            #tensor_mean_value = torch.mean(tensors).detach().cpu().numpy()
+            # tensor_mean_value = torch.mean(tensors).detach().cpu().numpy()
             # adapt to tensor's std values
-            tensor_std_value = torch.std(tensors).detach().cpu().numpy()
-            std = std * tensor_std_value
-        if per_sample_noise:
-            noise = tensors.data.new(tensor_size).normal_(0.0, std)
+            # import pdb; pdb.set_trace()
+            if std_per_item is None:
+                #print("std per item")
+                tensor_std_value = torch.std(tensors).detach().cpu().numpy()
+                std = std * tensor_std_value
+                if per_sample_noise:
+                    #print(f"sample mask with size {tensor_size}")
+                    noise = tensors.data.new(tensor_size).normal_(0.0, std)
+                else:
+                    #print(f"batch mask with size {tensors.size()}")
+                    noise = tensors.data.new(tensors.size()).normal_(0.0, std)
+            else:
+                # respect_attr: True goes here
+                #print("per unit noise w.r.t attribution")
+                # we need (co)variances here rather than std's
+                mean_vector = std_per_item.new_zeros(std_per_item.size())
+                scaled_cov_vector = std * (std_per_item * std_per_item) + 1e-5
+                cov_matrix = torch.diag(scaled_cov_vector)
+                noise_pdf = \
+                    torch.distributions.MultivariateNormal(mean_vector,
+                                                           cov_matrix)
+                if per_sample_noise:
+                    noise = noise_pdf.sample((tensor_size[0],))
+                else:
+                    noise = noise_pdf.sample()
         else:
-            noise = tensors.data.new(tensors.size()).normal_(0.0, std)
+            if per_sample_noise:
+                #print(f"sample mask with size {tensor_size}")
+                noise = tensors.data.new(tensor_size).normal_(0.0, std)
+            else:
+                #print(f"batch mask with size {tensors.size()}")
+                noise = tensors.data.new(tensors.size()).normal_(0.0, std)
         return tensors + noise
 
     def update_momentum(self, new_update, momentum):
