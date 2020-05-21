@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import typing
 from typing import Any, Callable, List, Tuple, Union
 from captum.attr import LayerConductance
@@ -169,16 +170,31 @@ class Importance(LayerConductance):
                 # respect_attr: True goes here
                 #print("per unit noise w.r.t attribution")
                 # we need (co)variances here rather than std's
-                mean_vector = std_per_item.new_zeros(std_per_item.size())
-                scaled_cov_vector = std * (std_per_item * std_per_item) + 1e-5
-                cov_matrix = torch.diag(scaled_cov_vector)
-                noise_pdf = \
-                    torch.distributions.MultivariateNormal(mean_vector,
-                                                           cov_matrix)
+                mean_vector = np.zeros(std_per_item.size())
+                std_vector = std_per_item.detach().cpu().numpy()
+                scaled_cov_vector = std * (std_vector * std_vector) + 1e-5
+                cov_matrix = np.diag(scaled_cov_vector)
+                
+                # mean_vector = std_per_item.new_zeros(std_per_item.size())
+                # scaled_cov_vector = std * (std_per_item * std_per_item) + 1e-5
+                # cov_matrix = torch.diag(scaled_cov_vector)
+                # noise_pdf = \
+                #     torch.distributions.MultivariateNormal(mean_vector,
+                #                                            cov_matrix)
+                # if per_sample_noise:
+                #     noise = noise_pdf.sample((tensor_size[0],))
+                # else:
+                #     noise = noise_pdf.sample()
+
                 if per_sample_noise:
-                    noise = noise_pdf.sample((tensor_size[0],))
+                    np_noise = np.random.multivariate_normal(mean_vector,
+                                                             cov_matrix,
+                                                             (tensor_size[0], ))
                 else:
-                    noise = noise_pdf.sample()
+                    np_noise = np.random.multivariate_normal(mean_vector,
+                                                             cov_matrix)
+                noise = torch.from_numpy(np_noise).type(torch.float)
+                noise = noise.to(tensors.device)
         else:
             if per_sample_noise:
                 #print(f"sample mask with size {tensor_size}")
