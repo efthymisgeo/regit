@@ -172,7 +172,7 @@ class Importance(LayerConductance):
                 # we need (co)variances here rather than std's
                 mean_vector = np.zeros(std_per_item.size())
                 std_vector = std_per_item.detach().cpu().numpy()
-                scaled_cov_vector = std * (std_vector * std_vector) + 1e-5
+                scaled_cov_vector = (std * std) * (std_vector * std_vector) + 1e-5
                 cov_matrix = np.diag(scaled_cov_vector)
                 
                 # mean_vector = std_per_item.new_zeros(std_per_item.size())
