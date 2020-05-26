@@ -45,6 +45,12 @@ if __name__ == "__main__":
     q1 = np.percentile(acc, 25)
     q3 = np.percentile(acc, 75)
     iq = q3 - q1
+    print(f"25th percentile is {q1}")
+    print(f"75th percentile is {q3}")
+    print(f"iq distance is is {iq}")
+    print(f"inner fence from {q1 - 1.5*iq} to {q3 + 1.5*iq}")
+    print(f"outter fence from {q1 - 3*iq} to {q3 + 3*iq}")
+
     h_mild_outliers = []
     l_mild_outliers = []
     h_extreme_outliers = []
@@ -55,10 +61,10 @@ if __name__ == "__main__":
             l_mild_outliers.append(run_i)
         elif run_i <= (q1 - 1.5*iq):
             l_mild_outliers.append(run_i)
-        elif run_i >= (q1 + 3*iq):
+        elif run_i >= (q3 + 3*iq):
             h_mild_outliers.append(run_i)
             h_extreme_outliers.append(run_i)
-        elif run_i >= (q1 + 1.5*iq):
+        elif run_i >= (q3 + 1.5*iq):
             h_mild_outliers.append(run_i)
 
     h_mild_p = 100.0 * len(h_mild_outliers) / len(acc)

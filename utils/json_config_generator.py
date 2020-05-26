@@ -17,14 +17,21 @@ if __name__ == "__main__":
     with open(temp_json, "r") as fd:
         conf = json.load(fd)
     
-    experiment_name = "_medium_mul_"
+    experiment_name = "_x-large_mul_"
     type_of_experiment = "na"
     peak_list = [8, 10, 13, 16, 19, 22, 25, 28, 31, 34, 37, 40]
-    sigma_list = [0.01, 0.005, 0.001, 0.0005, 0.0001]
+    sigma_list = [0.005, 0.001]
 
     for peak in peak_list:
         for sigma in sigma_list:
             new_conf = conf.copy()
+            ###################################################################
+            #### SET GAUSS ATTRIBUTION VALUES
+            ###################################################################
+            # new_conf["attribution"]["adapt_to_tensor"] = True
+            # new_conf["attribution"]["per_sample_noise"] = True
+            # new_conf["attribution"]["respect_attr"] = True
+
             # fix peak epoch
             new_conf["use_drop_schedule"]["peak_epoch"] = peak
             # fix noise type
@@ -34,7 +41,7 @@ if __name__ == "__main__":
                 experiment_name + str(peak) + "_" + type_of_experiment \
                 + "_" + str(sigma) + "_" + str(new_conf["runs"]) + "runs"
             # set new .json name
-            new_conf_name = "mul_" + str(peak) + "_" \
+            new_conf_name = "x-large_mul_" + str(peak) + "_" \
                             + type_of_experiment + "_" + str(sigma) + ".json"
             new_conf_path = os.path.join(json_template_path, new_conf_name)
             with open(new_conf_path, "w") as o_fd:

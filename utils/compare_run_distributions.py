@@ -65,7 +65,9 @@ if __name__ == "__main__":
                         help="Path to model experiment file")
     parser.add_argument("-m3", "--mdl_folder3", required=False,
                         help="Path to model experiment file")
-    parser.add_argument("-n", "--output_name", required=True,
+    parser.add_argument("-m4", "--mdl_folder4", required=False,
+                        help="Path to model experiment file")
+    parser.add_argument("-o", "--output_name", required=True,
                         help="name of the output figure")
     args = parser.parse_args()
     
@@ -73,11 +75,15 @@ if __name__ == "__main__":
     mdl_list.append(args.mdl_folder1)
     mdl_list.append(args.mdl_folder2)
     mdl_list.append(args.mdl_folder3)
+    mdl_list.append(args.mdl_folder4)
 
     csv_list = []
     acc_list = []
     method_list = []    
-    names = ["Raw", "Dropout", "Condrop"]
+    #names = ["Raw", "Dropout", "Condrop"]
+    #names = ["peak-19", "peak-22", "peak-25", "peak-28"]
+    #names = ["peak-19", "peak-22", "peak-25"]
+    names = ["sigma:0.1", "sigma:0.01", "signa:0.005", "sigma:0.001"]
     for i, mdl in enumerate(mdl_list):
         #import pdb; pdb.set_trace()
         result_folder = os.path.join(path2exps, mdl)
@@ -98,7 +104,7 @@ if __name__ == "__main__":
                 method_list.append(names[i])
         acc_list.extend(acc)
         #import pdb; pdb.set_trace()
-        print(f"Mean is {np.mean(acc[1:])} with std {np.std(acc[1:])} and median {np.median(acc[1:])}")
+        print(f"Mean is {np.mean(acc)} with std {np.std(acc)} and median {np.median(acc)}")
     
     
     plot_name = args.output_name + ".png"
@@ -110,10 +116,10 @@ if __name__ == "__main__":
     df = pd.DataFrame(data=d)
     
     sns.set(style="whitegrid")
-    sns_plot = sns.violinplot(y="Accuracy",
-                              x="Method",
+    sns_plot = sns.violinplot(y=col_names[0],
+                              x=col_names[1],
                               data=df,
                               scale="width",
-                              inner="box")
-    #sns_plot.figure.savefig(plot_name) #, bbox_inches='tight')
-    sns_plot.figure.savefig("test.png")
+                              inner="point")
+    sns_plot.figure.savefig(plot_name) #, bbox_inches='tight')
+    #sns_plot.figure.savefig("test.png")
