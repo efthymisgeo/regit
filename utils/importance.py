@@ -4,6 +4,77 @@ import typing
 from typing import Any, Callable, List, Tuple, Union
 from captum.attr import LayerConductance
 
+
+class Attributor():
+    """
+    Generic attribution class which is being used to rank neurons.
+    Args:
+        model: the model or more precisely the forward function
+        layer_list: the list of the layers to be attributed
+    """
+    def __init__(self,
+                 model,
+                 layer_list,
+                 device_ids=None,
+                 method="conductance"):
+        self.model = model
+        self.layer_list = layer_list
+        self.device_ids = device_ids
+        self.method = method
+        self.attributor_list = self.init_attributor()
+
+    def init_attributor(self):
+        """
+        Function which is used to initalize the attribution method which will
+        be used. Returns a list with the layers that will be attributed an
+        importance score.
+        """
+        attributor_list = []
+        if self.method == "conductance":
+            for i, layer in enumerate(self.layer_list):
+                attributor_list.append(Importance(self.model, layer))
+        else:
+            raise NotImplementedError("Not a valid ranking method")
+        return attributor_list
+    
+    def get_attributions(self,
+                         inputs,
+                         baselines=None,
+                         target=None,
+                         additional_forward_args=None,
+                         n_steps=50,
+                         method="riemann_trapezoid",
+                         internal_batch_size=None,
+                         return_convergence_delta=False,
+                         sample_batch=None,
+                         sigma_input=None,
+                         sigma_attr=None,
+                         adapt_to_tensor=False,
+                         momentum=None,
+                         aggregate=True,
+                         per_sample_noise=False,
+                         respect_attr=False
+                         ):
+        """
+        Gets the attribution for each one of the coresponding layers
+        """
+        att_scores = []
+        for att in self.attributor_list:
+            att_scores.append(att.attribute_noise(inputs,
+                                                  baselines=baselines,
+                                                  target=target,
+                                                  n_steps=n_steps,
+                                                  sample_batch=sample_batch,
+                                                  sigma_attr=sigma_attr,
+                                                  sigma_input=sigma_input,
+                                                  adapt_to_tensor=adapt_to_tensor,
+                                                  momentum=momentum,
+                                                  aggregate=aggregate,
+                                                  per_sample_noise=per_sample_noise,
+                                                  respect_attr=respect_attr))
+        return att_scores
+
+        
 class Importance(LayerConductance):
     def __init__(self,
                  forward_func,

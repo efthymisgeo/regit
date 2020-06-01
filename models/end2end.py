@@ -5,12 +5,12 @@ import torch
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
-from utils.model_utils import train, test, validate, EarlyStopping, \
+from utils.model_utils import train, new_train, test, validate, EarlyStopping, \
     LinearScheduler, MultiplicativeScheduler, \
     StepScheduler, ExponentialScheduler 
 from utils.mnist import MNIST
 from configs.config import Config
-from modules.models import CNN2D
+from modules.models import CNN2D, CNNFC
 
 #from torch.utils.tensorboard import SummaryWriter
 
@@ -27,6 +27,7 @@ def run_training(model,
                  ckpt_path="checkpoints/MNIST"):
     """ # TODO add docstrings
     """
+    NEW_VERSION = True
     regularization = experiment_setup["regularization"]
     optim_setup = experiment_setup["optimization"]
     print(f"Model {experiment_setup['model_name']} with "
@@ -166,32 +167,60 @@ def run_training(model,
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
         print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
-        train_loss, train_acc, p_list, train_loss_list = \
-            train(model,
-                  train_loader,
-                  optimizer,
-                  epoch,
-                  regularization=regularization,
-                  writer=writer,
-                  attributor=attributor,
-                  max_p_drop=p_drop,
-                  mix_rates=experiment_setup["mixout"],
-                  plain_drop_flag=experiment_setup["plain_drop"],
-                  p_schedule=p_schedule,
-                  use_inverted_strategy=use_inv_drop,
-                  inverted_strategy=inv_startegy,
-                  reset_counter=reset_counter,
-                  sampling_imp=sampling_imp,
-                  aggregate=aggregate,
-                  n_steps=n_steps,
-                  sample_batch=sample_batch,
-                  sigma_attr=sigma_attr,
-                  sigma_input=sigma_input,
-                  adapt_to_tensor=adapt_to_tensor,
-                  momentum=momentum,
-                  per_sample_noise=per_sample_noise,
-                  respect_attr=respect_attr)
-        
+        if NEW_VERSION is False:
+            train_loss, train_acc, p_list, train_loss_list = \
+                train(model,
+                    train_loader,
+                    optimizer,
+                    epoch,
+                    regularization=regularization,
+                    writer=writer,
+                    attributor=attributor,
+                    max_p_drop=p_drop,
+                    mix_rates=experiment_setup["mixout"],
+                    plain_drop_flag=experiment_setup["plain_drop"],
+                    p_schedule=p_schedule,
+                    use_inverted_strategy=use_inv_drop,
+                    inverted_strategy=inv_startegy,
+                    reset_counter=reset_counter,
+                    sampling_imp=sampling_imp,
+                    aggregate=aggregate,
+                    n_steps=n_steps,
+                    sample_batch=sample_batch,
+                    sigma_attr=sigma_attr,
+                    sigma_input=sigma_input,
+                    adapt_to_tensor=adapt_to_tensor,
+                    momentum=momentum,
+                    per_sample_noise=per_sample_noise,
+                    respect_attr=respect_attr)
+        else:
+            train_loss, train_acc, p_list, train_loss_list = \
+                          new_train(model,
+                                    train_loader,
+                                    optimizer,
+                                    epoch,
+                                    regularization=regularization,
+                                    writer=writer,
+                                    attributor=attributor,
+                                    max_p_drop=p_drop,
+                                    mix_rates=experiment_setup["mixout"],
+                                    plain_drop_flag=experiment_setup["plain_drop"],
+                                    p_schedule=p_schedule,
+                                    use_inverted_strategy=use_inv_drop,
+                                    inverted_strategy=inv_startegy,
+                                    reset_counter=reset_counter,
+                                    sampling_imp=sampling_imp,
+                                    aggregate=aggregate,
+                                    n_steps=n_steps,
+                                    sample_batch=sample_batch,
+                                    sigma_attr=sigma_attr,
+                                    sigma_input=sigma_input,
+                                    adapt_to_tensor=adapt_to_tensor,
+                                    momentum=momentum,
+                                    per_sample_noise=per_sample_noise,
+                                    respect_attr=respect_attr)
+            
+            
         loss_dict["train"].extend(train_loss_list)
         acc_dict["train"].append(train_acc)
         p_drop_list.append(p_list)
@@ -204,7 +233,8 @@ def run_training(model,
 
         #n_drops = OrderedDict(sorted(model.fc_1_idx.items(),
         #                      key=itemgetter(1), reverse=False))
-        switches.append(model.switch_counter)
+        if not NEW_VERSION:
+            switches.append(model.switch_counter)
         
         #######################################################################
 
@@ -244,7 +274,25 @@ def run_training(model,
     cnn_setup = model_setup["CNN2D"]
     fc_setup = model_setup["FC"]
 
-    saved_model = CNN2D(input_shape=data_setup["input_shape"],
+    if NEW_VERSION is True:
+        saved_model = CNNFC(input_shape=data_setup["input_shape"],
+                        kernels=cnn_setup["kernels"],
+                        kernel_size=cnn_setup["kernel_size"],
+                        stride=cnn_setup["stride"],
+                        padding=cnn_setup["padding"],
+                        maxpool=cnn_setup["maxpool"],
+                        pool_size=cnn_setup["pool_size"],
+                        conv_drop=cnn_setup["conv_drop"],
+                        p_conv_drop=cnn_setup["p_conv_drop"],
+                        conv_batch_norm=cnn_setup["conv_batch_norm"],
+                        regularization=experiment_setup["regularization"],
+                        activation=fc_setup["activation"],
+                        fc_layers=fc_setup["fc_layers"],
+                        add_dropout=fc_setup["fc_drop"],
+                        p_drop=fc_setup["p_drop"],
+                        device=model.device).to(model.device)
+    else:
+        saved_model = CNN2D(input_shape=data_setup["input_shape"],
                         kernels=cnn_setup["kernels"],
                         kernel_size=cnn_setup["kernel_size"],
                         stride=cnn_setup["stride"],

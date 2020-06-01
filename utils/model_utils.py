@@ -627,6 +627,219 @@ def train(model,
     return train_loss, train_acc, prob_value, batch_loss
 
 
+def new_train(model,
+              train_loader,
+              optimizer,
+              epoch,
+              regularization=True,
+              writer=None,
+              attributor=None,
+              drop_scheduler=True,
+              max_p_drop=None,
+              mix_rates=False,
+              plain_drop_flag=False,
+              p_schedule=None,
+              use_inverted_strategy=True,
+              inverted_strategy="importance",
+              reset_counter=False,
+              sampling_imp=50,
+              n_steps=25,
+              aggregate=True,
+              sample_batch=None,
+              sigma_attr=None,
+              sigma_input=None,
+              adapt_to_tensor=False,
+              momentum=None,
+              per_sample_noise=False,
+              respect_attr=False):
+    """
+    Function that trains the given model for an epoch and returns the 
+    respective loss and accuracy after the epoch is over.
+    Args:
+        model (torch.nn.Module): pytorch model to be trained
+        train_loader (torch.utils.data.Dataloader): the train set 
+            pytorch iterator
+        optimizer (torch.optim.optimizer): optimizer to be used
+        epoch (int): epoch id
+        writer (torch.utils.tensorboard): SummaryWriter which is used for
+            Tensorboard logging
+        attributor (list): list of captum.attr instances which is used for
+            attributing the importance of a neuron  
+        max_p_drop (float): value at which the drop prob saturates
+        mix_rates (bool): handles the use of mixed drop rates
+        plain_drop (bool): used for traditional dropour setup
+        p_schedule (Scheduler): the scheduler instance which is used
+        use_inverted_strategy (bool): handles the use of inverted drop strategy
+        inverted_strategy (str): specifies the strategy to be used
+        reset_counter (bool): reset or not the switch counter at every epoch
+        sampling_imp (list/int): int or list of ints which indicate the number
+            of batches a single mask will be applied. In other words, indicates
+            the number of epochs that will be through until the next importance
+            calculation.
+        n_steps (int): number of interpolation steps
+        aggregate (bool): a boolean variable which indicates if the importances
+            will be aggregated over the batch or not (one mask/multiple masks)
+        sample_batch (float): a float which specifies the amount of batch that
+            will be held for calculating the attribution
+        sigma_attr (float): a float which specifies the std of noise to be
+            added on top of the attribution
+        sigma_input (float): a float which specifies the std of noise to be
+            added on the input to "mislead" the attributions
+        momentum (float): momentum term to be added in the attribution
+            calculation
+        per_sample_noise (bool): when true the noise is added per sample rather
+            than per batch, enforcing the use of a different mask for every
+            sample
+        respect_attr (bool): when true the std of the noise to be added will be
+            proportional to the std of the attribution for the given unit. This
+            intuitively means that we "respect" the unit's importance by
+            leaving it unchanged when the std is small and disturb it a lot
+            when it std is high.
+    Returns:
+        train_loss (float): list of train losses per epoch
+        train_acc (float): list of train accuracies per epoch
+        prob_value (float): list of dropout probabilities
+    """
+    PLAIN_DROPOUT = False
+    model.train()
+    train_loss = 0
+    correct = 0
+    batch_loss = []
+    step = 0
+    prob_value = 0
+
+    # SAMPLING = sampling_imp # sampling masks in a minibatch (aka calculating attributions)
+    # if isinstance(sampling_imp, list):
+    #     if epoch <= len(sampling_imp):
+    #         SAMPLING = sampling_imp[epoch-1]
+    #     else:
+    #         SAMPLING = sampling_imp[-1]
+    # else:
+    #     SAMPLING = sampling_imp
+
+    #attributor = None  # hach to dismiss previous values
+
+    ###########################################################################
+    # drop schedules used
+    ###########################################################################
+    # for intel drop
+    # drop_list = [0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+    # dropout scheduler
+    # if drop_scheduler:
+    #     if epoch <= len(drop_list):
+    #         p_drop = drop_list[epoch-1]
+    #     else:
+    #         p_drop = drop_list[-1]
+    
+    if p_schedule is not None:
+        # TODO investigate whether to use get_prob() or step()
+        p_drop = p_schedule.get_prob()
+        print("Using custom scheduler")
+        
+    if plain_drop_flag:
+        print("Enabling plain dropout")
+        p_drop = max_p_drop
+    
+    if not regularization:
+        # overwrite existing values for proper use
+        p_drop = 0.0
+        mix_rates = False
+        p_schedule = None
+        attributor = None
+
+    # model.set_dropout(p_drop, mix_rates)
+    # print(f"Model is trained with p_drop {model.p_drop}")
+    
+    # if RESET_COUNTER:
+    #     model.reset_drop_cnt()
+
+    for batch_idx, (data, target) in tqdm(enumerate(train_loader),
+                                                    total=len(train_loader)):
+        data, target = data.to(model.device), target.to(model.device)
+        batch_size = data.size(0)
+        
+        # if p_schedule is not None:
+        #     if batch_idx == 0 and epoch ==1:
+        #         print(f"Using custom scheduler {p_schedule}")
+        #     p_drop = p_schedule.step()
+        #     if mix_rates:
+        #         # p_drop = (plain_drop, intel_drop)
+        #         p_drop = (max_p_drop - p_drop, p_drop)
+
+        baseline = data * 0.0
+        dl = data.clone()       
+        #import pdb; pdb.set_trace()                                
+        model.eval()
+        rankings = None
+        if PLAIN_DROPOUT is False:
+            rankings = \
+                attributor.get_attributions(dl,
+                                            baselines=baseline,
+                                            target=target,
+                                            n_steps=n_steps,
+                                            sample_batch=sample_batch,
+                                            sigma_attr=sigma_attr,
+                                            sigma_input=sigma_input,
+                                            adapt_to_tensor=adapt_to_tensor,
+                                            momentum=momentum,
+                                            aggregate=aggregate,
+                                            per_sample_noise=per_sample_noise,
+                                            respect_attr=respect_attr)
+        model.train()
+        output = model(data, rankings)
+        
+        optimizer.zero_grad()
+        
+        loss = F.nll_loss(output, target)
+        batch_loss.append(loss.item())
+        train_loss += loss.item()
+        loss.backward()
+        optimizer.step()
+
+        #prob_value = p_drop
+
+        # if epoch==1 and batch_idx == 500:
+        #     import pdb; pdb.set_trace()
+        #     print(model.switch_counter) 
+
+        #######################################################################
+        ############ TENSORBOARD LOGGING    ###################################
+        #######################################################################
+        # this usually is ommited in the train loop
+        # however we track it for debugging purposes
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
+        ##import pdb; pdb.set_trace()
+        #if (batch_idx+1) % 500 == 0 and (epoch+1) % 4 == 0:
+        #    for tag, value in model.named_parameters():
+        #        tag = tag.replace(".", "/")
+        #        writer.add_histogram(tag,
+        #                             value.data.cpu(),
+        #                             step, bins="auto")
+        #        #writer.add_histogram(tag + '/grad',
+        #        #                     value.grad.data.cpu(),
+        #        #                     step, bins="auto")
+        #        writer.flush()
+        #    step += 1
+    
+    # if p_schedule is not None:
+    #     print(f"Scheduler probability is {p_drop}")    
+
+        
+    print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+          epoch, batch_idx * len(data), len(train_loader.sampler),
+          100. * batch_idx / len(train_loader.sampler), loss.item()))
+
+    train_loss /= len(train_loader)
+    train_acc = 100. * correct / len(train_loader.sampler)
+
+    #writer.add_scalars("loss_curves", {"train": train_loss}, epoch-1)
+    #writer.add_scalars("accuracy_curve", {"train": train_acc}, epoch-1)
+    
+    return train_loss, train_acc, prob_value, batch_loss
+
+
 def validate(model,
              val_loader,
              epoch=None,

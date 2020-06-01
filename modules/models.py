@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from configs.config import Config
 from utils.functions import *
+from modules.idrop import ConDropout
 
 NON_LINEARITIES = {
     'relu': nn.ReLU,
@@ -900,3 +901,176 @@ class CNN1D(nn.Module):
         x = self.fc2(x)
         return None, F.log_softmax(x, dim=1)
 
+class CNNFC(nn.Module):
+    """
+    CNNFC model architecture - Convolutional layers followed by fully connected
+
+    Args:
+        input_shape (tuple): shape of input image (height, width, channels)
+        kernels (list): number of kernels per conv layer
+        kernel_size (int/tuple): size of kernels to be applied
+        stride (list): list of stride values for every conv layer
+        padding (list): list of padding values for every conv layer
+        maxpool (bool): handles the use of maxpooling
+        pool_size (list): 2D pool size [x-axis, y-axis]
+        conv_drop (list): handles the drop probability in 
+            convolutional layers
+        p_conv_drop (float): drop probability for conv layers
+        conv_batch_norm (bool): handles the use of batch norm
+        regularization (bool): add or not regularization
+        activation (str): defines which non-linearity will be used
+        fc_layers (list): list with number of units per layer
+        add_dropout (bool): add or ont dropout
+        p_drop (float): drop probability for fc layers
+        device (str): cpu or gpu usage
+    """
+
+    def __init__(self,
+                 input_shape=[28, 28],
+                 kernels=[40, 100], kernel_size=2,
+                 stride=1, padding=0,
+                 maxpool=True, pool_size=[2, 2],
+                 conv_drop=False, p_conv_drop=0.2,
+                 conv_batch_norm=False, regularization=True,
+                 activation="relu", fc_layers=[100,100],
+                 add_dropout=True,
+                 p_drop=0.5,
+                 device="cpu"):
+        super(CNNFC, self).__init__()
+        
+        # load cnn parameters
+        self.input_shape = input_shape
+        self.kernels = kernels
+        self.channels = self._get_conv_channels()
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.maxpool = maxpool
+        self.pool_size = pool_size
+        self.conv_drop = conv_drop
+        self.p_conv_drop = p_conv_drop
+        self.conv_batch_norm = conv_batch_norm
+        self.regularization = regularization
+        self.activation = activation
+        
+        # load fc parameters
+        self.fc_layer_list = fc_layers
+        self.add_dropout = add_dropout
+        self.condrop = True
+        self.p_drop = [0.25, 0.75]
+        self.n_buckets = 2
+        self.n_fc_layers = len(fc_layers)
+
+        # construct modules
+        self.device = device
+        self.conv, self.conv_out = self._make_conv()
+        self.fc_input_size = int(np.prod(self.conv_out)) # channels x height x width
+        self.fc = self._make_fc()
+
+        # get dropout layers
+        self.drop_layers = self._make_drop()
+        
+        #self.total_sw_cnt, self.switch_counter = self.reset_drop_cnt()
+
+    def _get_activ(self):
+        """Returns activation function 
+        """
+        activ = NON_LINEARITIES.get(self.activation, nn.ReLU)
+        if activ is not None:
+            activ = activ()
+        return activ
+
+    def _get_conv_channels(self):
+        """Returns input and output channels list of lists 
+        """
+        if len(self.input_shape) == 2:
+            self.input_shape.insert(0, 1)
+            print("Appending an extra dimension to" 
+                  f"the 2D image as {self.input_shape}")
+        elif len(self.input_shape) == 3:
+            print(f"Input already in shape {self.input_shape}")
+        else:
+            raise ValueError(f"Input is {self.input_shape} which is not" 
+                             "accepted. Reshape it in 2D or 3D.")
+        channel_list = []
+        in_channels = self.input_shape[0]
+        for i_cnn in range(len(self.kernels)):
+            in_out_channel_list = [in_channels, self.kernels[i_cnn]]
+            in_channels = self.kernels[i_cnn]
+            channel_list.append(in_out_channel_list)
+        return channel_list
+
+    def _make_conv(self):
+        """Generates convolutional layers from given kernels and kernel size
+        """
+        conv_layers = []
+        in_channels, x, y = self.input_shape
+
+        for i_cnn in range(len(self.channels)):
+            conv_layers.append(nn.Conv2d(in_channels=self.channels[i_cnn][0],
+                                         out_channels=self.channels[i_cnn][1],
+                                         kernel_size=self.kernel_size[i_cnn],
+                                         stride=self.stride[i_cnn],
+                                         padding=self.padding[i_cnn]))
+            # calculate conv output tensor dimensions (x-axis & y-axis)
+            x = ((x - self.kernel_size[i_cnn] + 2*self.padding[i_cnn]) /
+                 self.stride[i_cnn]) + 1
+            y = ((y - self.kernel_size[i_cnn] + 2*self.padding[i_cnn]) /
+                 self.stride[i_cnn]) + 1
+
+            if self.conv_batch_norm:
+                conv_layers.append(nn.BatchNorm2d(self.channels[i_cnn][1]))
+            conv_layers.append(self._get_activ())  # append activation function
+            if self.maxpool[i_cnn]:
+                conv_layers.append(nn.MaxPool2d(kernel_size=self.pool_size))
+                x = x // self.pool_size[0]
+                y = y // self.pool_size[1]
+            if self.conv_drop[i_cnn]:
+                conv_layers.append(nn.Dropout(p=0.5))
+
+        output_size = (self.channels[-1][-1] , x, y)
+        return nn.Sequential(*conv_layers), output_size
+    
+    def _make_fc(self):
+        """Generate fully connected layers
+        """
+        fc_list = self.fc_layer_list.copy() # copy to not affect original list
+        fc_list.insert(0, self.fc_input_size) # append the cnn output at the beggining
+        fc = []
+        # append linear layers
+        for i_fc in range(1, len(fc_list)):
+            fc.append(nn.Linear(fc_list[i_fc-1], fc_list[i_fc]))
+        return nn.ModuleList(fc)
+
+    def _make_drop(self):
+        """Generate dropout layers
+        """
+        drop_list = []
+        for i_drop in range(len(self.fc_layer_list) - 1):
+            if self.condrop:
+                drop_list.append(ConDropout(p_buckets=self.p_drop,
+                                            n_buckets=self.n_buckets))
+            else:
+                drop_list.append(nn.Dropout(p=self.p_drop[0]))
+        return nn.ModuleList(drop_list)
+
+    def forward(self, x, rankings=None):
+        if len(x.shape) != 4:
+            x = x.view(x.shape[0], 1, self.input_shape[0], self.input_shape[1])
+        # BxCxHxW
+        out = self.conv(x)
+        # BxD
+        out = out.view(-1, self.fc_input_size)
+        
+        # import pdb; pdb.set_trace()
+        # apply regularization
+        for i in range(self.n_fc_layers - 1):
+            out = self.fc[i](out)
+            if rankings is None:
+                out = self.drop_layers[i](out)
+            else:
+                out = self.drop_layers[i](out, rankings[i])
+            out = F.relu(out)
+
+        out = self.fc[-1](out)
+        return F.log_softmax(out, dim=1)
