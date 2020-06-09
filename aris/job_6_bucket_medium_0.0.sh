@@ -40,6 +40,6 @@ module load slp/1.3.1
 
 ## RUN YOUR PROGRAM ##
     
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_0.05_0.95_medium_0.0_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_0.05_0.95_medium_0.0_${SLURM_JOB_ID}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/bucket__0.05_0.95_medium_0.0.json &
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_0.6_0.4_medium_0.0_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_0.6_0.4_medium_0.0_${SLURM_JOB_ID}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/bucket__0.6_0.4_medium_0.0.json &
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_0.05_0.95_medium_0.0_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_0.05_0.95_medium_0.0_${SLURM_JOB_ID}.err  python models/regul.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/bucket__0.05_0.95_medium_0.0.json &
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${SLURM_JOB_NAME}_0.6_0.4_medium_0.0_${SLURM_JOB_ID}.out -e logs/${SLURM_JOB_NAME}_0.6_0.4_medium_0.0_${SLURM_JOB_ID}.err  python models/regul.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/bucket__0.6_0.4_medium_0.0.json &
 wait
