@@ -53,7 +53,8 @@ class Attributor():
                          momentum=None,
                          aggregate=True,
                          per_sample_noise=False,
-                         respect_attr=False
+                         respect_attr=False,
+                         batch_idx=3
                          ):
         """
         Gets the attribution for each one of the coresponding layers
@@ -71,7 +72,8 @@ class Attributor():
                                                   momentum=momentum,
                                                   aggregate=aggregate,
                                                   per_sample_noise=per_sample_noise,
-                                                  respect_attr=respect_attr))
+                                                  respect_attr=respect_attr,
+                                                  batch_idx=batch_idx))
         return att_scores
 
         
@@ -100,8 +102,8 @@ class Importance(LayerConductance):
                         momentum=None,
                         aggregate=True,
                         per_sample_noise=False,
-                        respect_attr=False
-                        ):
+                        respect_attr=False,
+                        batch_idx=3):
         """
         Function which adds noise in the attribution itslef. This might seem
         stupid at first sight but one should consider that we are using this
@@ -169,7 +171,12 @@ class Importance(LayerConductance):
             # vector representation for the whole batch
             # att_new = torch.sum(att_new, dim=0)
             att_new = torch.mean(att_new, dim=0)
-            #import pdb; pdb.set_trace()
+
+        if batch_idx == 3:
+            print(f"mean rank is {torch.mean(att_new)} "
+                  f"with std {torch.std(att_new)} "
+                  f"and max {torch.max(att_new)} min {torch.min(att_new)}")
+            
         
         if sigma_attr is not None:
             #print(f"Mean of tensor before is {torch.mean(att_new)}")
@@ -200,6 +207,7 @@ class Importance(LayerConductance):
             att_new = self.mem_list[0]
             #print(f"Mean of tensor after momentum is {torch.mean(self.mem_list[0])}")
         #import pdb; pdb.set_trace()
+
         return att_new
 
     @staticmethod

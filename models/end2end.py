@@ -162,7 +162,14 @@ def run_training(model,
         per_sample_noise = attribute_setup.get("per_sample_noise", False)
         respect_attr = attribute_setup.get("respect_attr", False)
 
-    
+    if experiment_setup["idrop"] != {}:
+        map_rank_method = experiment_setup["idrop"].get("method", "bucket")
+        p_buckets = experiment_setup["idrop"].get("p_buckets", [0.2, 0.8])
+        inv_trick = experiment_setup["idrop"].get("inv_trick", "dropout")
+    else:
+        map_rank_method = "bucket"
+        p_buckets = [0.2, 0.8]
+        inv_trick = "dropout"
         
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
@@ -290,6 +297,10 @@ def run_training(model,
                         fc_layers=fc_setup["fc_layers"],
                         add_dropout=fc_setup["fc_drop"],
                         p_drop=fc_setup["p_drop"],
+                        idrop_method=map_rank_method,
+                        inv_trick=inv_trick,
+                        p_buckets=p_buckets,
+                        pytorch_dropout=experiment_setup["plain_drop"],
                         device=model.device).to(model.device)
     else:
         saved_model = CNN2D(input_shape=data_setup["input_shape"],

@@ -1,6 +1,6 @@
 {
     "model_name": "CNN2D",
-    "experiment_id": "_medium_mul_25_na_0.1_10runs",
+    "experiment_id": "_medium_mul_mean25_na_0.1_10runs",
     "imp_sampling": 1,
     "data_folder": "/work2/pa18/geopar/efthygeo/data",
     "checkpoint_folder": "/work2/pa18/geopar/efthygeo/checkpoints",

@@ -5,6 +5,7 @@ import torch
 
 MDL_NAMES = [
     "CNN2D",
+    "CNNFC",
     "FC"
 ]
 

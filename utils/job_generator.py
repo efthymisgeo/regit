@@ -63,10 +63,10 @@ if __name__ == "__main__":
     #     account = "T2-CS055-SL4-GPU"
 
     job_path = "aris"
-    job_name = "x-large-mul-na"
-    exp_type = "na" 
-    peak_list = [(8, 10), (13, 16), (19, 22), (25, 28), (31, 34), (37, 40)]
-    sigma_list = [0.005, 0.001] # 0.0005, 0.0001]
+    job_name = "bucket_"
+    exp_type = "medium" 
+    bucket_list = [(0.4, 0.6), (0.3, 0.7), (0.2, 0.8), (0.1, 0.9), (0.05, 0.95), (0.6, 0.4)]
+    noise_list = [0.0, 0.001, 0.005, 0.01, 0.1]
 
     head = f"""
 #!/bin/bash"""
@@ -124,22 +124,26 @@ module load slp/1.3.1"""
 wait"""
 
     runner = head.strip() + header + pre_body + body + pre_footer
-    for peak in peak_list:
-        for sigma in sigma_list:
+    for noise in noise_list:
+        cnt = 0
+        for _, buck in enumerate(bucket_list[:-3]):
+            buck_1 = bucket_list[cnt]
+            buck_2 = bucket_list[cnt + 1]
+            cnt = cnt + 2
             tmp_runner = runner
             command1 = \
                 f"""
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{peak[0]}_{exp_type}_{sigma}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{peak[0]}_{exp_type}_{sigma}_${{SLURM_JOB_ID}}.err  python models/regbi.py -m configs/model/layers-80sec_deep3.json -d configs/dataset/cifar10.json -e configs/experiment/aris/x-large_mul_{peak[0]}_{exp_type}_{sigma}.json &"""
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}.json &"""
             command2 = \
                 f"""
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{peak[1]}_{exp_type}_{sigma}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{peak[1]}_{exp_type}_{sigma}_${{SLURM_JOB_ID}}.err  python models/regbi.py -m configs/model/layers-80sec_deep3.json -d configs/dataset/cifar10.json -e configs/experiment/aris/x-large_mul_{peak[1]}_{exp_type}_{sigma}.json &"""
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}.json &"""
             tmp_runner = tmp_runner + command1 + command2 + wait
     
             write_approval = True 
             # query_yes_no(f"IS THE GENERATED SCRIPT OK? \n\n" + "=" * 50 +
             #                             f"\n\n\n {tmp_runner}", default="no")
             
-            job_conf_name = f"job_x-large_na_{str(sigma)}_{str(peak[0])}_{str(peak[1])}.sh"
+            job_conf_name = "job_" + f"{str(cnt)}_" + job_name + f"{str(exp_type)}_{str(noise)}.sh"
             job_conf_path = os.path.join(job_path, job_conf_name)
             if write_approval:
                 with open(job_conf_path, "w") as f:

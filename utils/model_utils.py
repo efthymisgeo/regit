@@ -700,7 +700,7 @@ def new_train(model,
         train_acc (float): list of train accuracies per epoch
         prob_value (float): list of dropout probabilities
     """
-    PLAIN_DROPOUT = False
+    skip_ranks = plain_drop_flag
     model.train()
     train_loss = 0
     correct = 0
@@ -737,9 +737,9 @@ def new_train(model,
         p_drop = p_schedule.get_prob()
         print("Using custom scheduler")
         
-    if plain_drop_flag:
-        print("Enabling plain dropout")
-        p_drop = max_p_drop
+    # if plain_drop_flag:
+    #     print("Enabling plain dropout")
+    #     p_drop = max_p_drop
     
     if not regularization:
         # overwrite existing values for proper use
@@ -772,7 +772,7 @@ def new_train(model,
         #import pdb; pdb.set_trace()                                
         model.eval()
         rankings = None
-        if PLAIN_DROPOUT is False:
+        if skip_ranks is False:
             rankings = \
                 attributor.get_attributions(dl,
                                             baselines=baseline,
@@ -785,7 +785,9 @@ def new_train(model,
                                             momentum=momentum,
                                             aggregate=aggregate,
                                             per_sample_noise=per_sample_noise,
-                                            respect_attr=respect_attr)
+                                            respect_attr=respect_attr,
+                                            batch_idx=batch_idx)
+            
         model.train()
         output = model(data, rankings)
         

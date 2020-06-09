@@ -111,6 +111,6 @@ if __name__ == "__main__":
     sns_plot = sns.violinplot(y="Accuracy",
                               data=pd_acc,
                               scale="width",
-                              inner="box")
+                              inner="point")
     #sns_plot.figure.savefig(plot_name) #, bbox_inches='tight')
     sns_plot.figure.savefig(os.path.join(result_folder, plot_name))

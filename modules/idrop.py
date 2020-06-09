@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(
 from configs.config import Config
 from utils.functions import *
 
+SUPPORTED_DISTRIBUTIONS = [
+    "sigma-norm",
+    "min-max",
+    "bucket"
+]
 
 class ConDropout(nn.Module):
     """
@@ -21,39 +26,52 @@ class ConDropout(nn.Module):
     probability trick to avoid rescaling during inference.
     
     Args:
-        p_buckets (list/float): the drop probability of every bucket in an
+        p_buckets(list/float): the drop probability of every bucket in an
             ascending order. when a single bucket is used p_buckets falls into
             the dropout case. Default: [0.25, 0.75]
-        n_buckets (int): the number of buckets that the units will be separated
+        n_buckets(int): the number of buckets that the units will be separated
             degault value is 2. Will be removed in the future. For debugging
             reasons
-        cont_pdf (str): Default is None. Otherwise one of the following choices
-            are available "linear", "sigma"
+        cont_pdf(str): Default is None. Otherwise one of the following choices
+            are available "sigma-norm"
+        correction_factor(float): the factor which is used for mean correction
+        tollerance(float): when mean approx is acceptable
+        inv_trick(string): which inversion trick to use
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
                  n_buckets=2,
                  cont_pdf=None,
+                 p_mean=0.5,
+                 correction_factor=0.01,
+                 tollerance=0.01,
                  inv_trick="dropout"):
         super(ConDropout, self).__init__()
-        if isinstance(p_buckets, list):
-            self.p_buckets = p_buckets
-        else:
-            self.p_buckets = [p_buckets]
-        self.p_mean = np.mean(self.p_buckets)   
-        self.n_buckets = n_buckets
         self.cont_pdf = cont_pdf
-        self.inv_trick = inv_trick
-        # self.inv_trick = "mak"
-        
-        self.split_intervals = self._get_bucket_intervals()
+        if self.cont_pdf not in SUPPORTED_DISTRIBUTIONS:
+                raise NotImplementedError("Not a supported pdf")
+        elif self.cont_pdf == "bucket":
+            if isinstance(p_buckets, list):
+                self.p_buckets = p_buckets
+            else:
+                self.p_buckets = [p_buckets]
+            self.p_mean = np.mean(self.p_buckets)   
+            self.n_buckets = n_buckets
+            self.split_intervals = self._get_bucket_intervals()
 
-        for i, p in enumerate(self.p_buckets):
-            if 1.0 < p or p < 0.0:
+            for i, p in enumerate(self.p_buckets):
+                if 1.0 < p or p < 0.0:
+                    raise ValueError("probability not in range [0,1]")
+        else:
+            self.p_mean = p_mean
+            if self.p_mean < 0.0 or self.p_mean > 1.0:
                 raise ValueError("probability not in range [0,1]")
+            self.cf = correction_factor
+            self.tollerance = tollerance
         
         self._init_message()
-
+        self.inv_trick = inv_trick
+        
     def _get_bucket_intervals(self):
         """
         Returns a list with the corresponding interval bounds for each
@@ -68,9 +86,13 @@ class ConDropout(nn.Module):
         return intervals
     
     def _init_message(self):
-        print(f"{self.n_buckets} bucket(s) will be used "
-              f"with prob {self.p_buckets} respectively.")
-        
+        if self.cont_pdf == "bucket":
+            print(f"{self.n_buckets} bucket(s) will be used "
+                  f"with prob {self.p_buckets} respectively.")
+        else:
+            print(f"Continuous mapping used is {self.cont_pdf} with mean value"
+                  f"{self.p_mean} and cf {self.cf}")
+
     def generate_random_masks(self, prob_masks):
         """function which generates mask based on a given prob mask 
         """
@@ -104,6 +126,58 @@ class ConDropout(nn.Module):
             torch.arange(0, input.size(0), device=input.device).view(-1, 1) * input.size(1)
         _, idx_mapping = sorted_idx.sort()
         return (idx_mapping + shift_idx ).view(-1)
+
+    @staticmethod
+    def _normalize(input):
+        """
+        Function which normalizes given tensor.
+        If the tensor is (B, N) the normalization is done across dim=1
+        If tensor is (N) (aggregated ranks) then a signle mean std value 
+        is extracted.
+        """
+        eps = 1e-6
+        
+        if len(input.size()) == 2:
+            mean = torch.mean(input, dim=1, keepdim=True)
+            std = torch.std(input, dim=1, keepdim=True) + eps
+            #input.sub_(mean).div_(std)
+        else:
+            mean = torch.mean(input)
+            std = torch.std(input) + eps
+            #input.sub_(mean).div_(std)
+        output = torch.div(torch.sub(input, mean), std)
+        return output
+    
+    @staticmethod
+    def _min_max(input):
+        """Applies the (x - min(x)) / (max(x) -min(x)) transformation
+        """
+        eps = 1e-6
+        if len(input.size()) == 2:
+            in_min, _ = torch.min(input, dim=1, keepdim=True)
+            in_max, _ = torch.max(input, dim=1, keepdim=True)
+        else:
+            in_min = torch.min(input)
+            in_max = torch.max(input)
+        # import pdb; pdb.set_trace()
+        #input.sub_(in_min).div(in_max - in_min + eps)
+        output = \
+            torch.div(torch.sub(input, in_min),
+                      torch.sub(in_max, in_min + eps))
+        return output
+
+    def _fix_pdf(self, unit_probs):
+        """Function which fixes an induced pdf based upon a correction factor
+        """
+        if len(unit_probs.size()) == 2:
+            mean_prob = torch.mean(unit_probs, dim=1, keepdim=True)
+        else:
+            mean_prob = torch.mean(unit_probs)
+        #TODO investigate tollerance usage
+        #mean_mask = torch.abs(self.p_mean - mean_prob) >= self.tollerance
+        cf = torch.div(self.p_mean, mean_prob)
+        fixed_probs = torch.clamp(torch.mul(unit_probs, cf) ,0.0, 1.0)
+        return fixed_probs
     
     def get_masks(self, input, ranking):
         """
@@ -118,16 +192,27 @@ class ConDropout(nn.Module):
             # dropout case: randomly set a neuron ranking
             prob_masks = input.data.new(input.size()).uniform_(0.0, 1.0)
             prob_masks = self.generate_random_masks(prob_masks)
-        else:
-            # i-drop case
+        elif self.cont_pdf == "bucket":
+            # bucket-drop case
             sorted_units_transform = self.sort_units(input, ranking)
             prob_masks = \
                 self.generate_bucket_mask(input.data.new_ones(input.size()))
-            # import pdb; pdb.set_trace()
             prob_masks = \
                 prob_masks.view(-1)[sorted_units_transform].reshape(input.size(0),
                                                                     input.size(1))
+        else:
+            # i-drop case
+            #print(ranking.size())
+            if self.cont_pdf == "sigma-norm":
+                ranking = self._normalize(ranking)
+                # keep probability
+                prob_masks = 1 - torch.sigmoid(ranking)
+            elif self.cont_pdf == "min-max":
+                prob_masks = 1 - self._min_max(ranking)    
+            prob_masks = self._fix_pdf(prob_masks)
             #print(f"Mixed Probabilistic Masks are {prob_masks}")
+            prob_masks = prob_masks.expand_as(input)
+            #print(f"Mixed Probabilistic Masks AFTER EXPANSION are {prob_masks}")
             # print(f"The ranking used is {self.unit_ranking}")
             # print(f"the sorted indices are {sorted_units_transform}")
             # print(f"Probabilistic Masks are {prob_masks}")
@@ -323,4 +408,22 @@ if __name__ == "__main__":
     print(out)
     out.backward()
     print(f"Intermid Gradient is {z.grad} and mask gradient is {mask.grad} while layer grad is {l.grad}")
-        
+
+    ###########################################################################
+    ### cont pdf check
+    ###########################################################################
+    multi = False
+    method = "min-max"
+    idrop = ConDropout(cont_pdf=method,
+                       p_mean=0.5,
+                       correction_factor=0.05)
+    # Batch_size x N_Units
+    inp1 = torch.ones(4, 10)
+    if multi:
+        rankings = torch.rand(4, 10)
+    else:
+        rankings = torch.rand(10)
+    
+    iout = idrop(inp1, rankings)
+
+

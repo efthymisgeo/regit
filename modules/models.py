@@ -935,6 +935,10 @@ class CNNFC(nn.Module):
                  activation="relu", fc_layers=[100,100],
                  add_dropout=True,
                  p_drop=0.5,
+                 idrop_method="bucket",
+                 inv_trick="dropout",
+                 p_buckets=[0.25, 0.75],
+                 pytorch_dropout=False,
                  device="cpu"):
         super(CNNFC, self).__init__()
         
@@ -955,10 +959,6 @@ class CNNFC(nn.Module):
         
         # load fc parameters
         self.fc_layer_list = fc_layers
-        self.add_dropout = add_dropout
-        self.condrop = True
-        self.p_drop = [0.25, 0.75]
-        self.n_buckets = 2
         self.n_fc_layers = len(fc_layers)
 
         # construct modules
@@ -966,6 +966,15 @@ class CNNFC(nn.Module):
         self.conv, self.conv_out = self._make_conv()
         self.fc_input_size = int(np.prod(self.conv_out)) # channels x height x width
         self.fc = self._make_fc()
+
+        #idrop layers
+        self.add_dropout = add_dropout
+        self.pytorch_drop = False
+        self.method = idrop_method
+        self.p_mean = p_drop
+        self.p_buckets = p_buckets
+        self.n_buckets = len(p_buckets)
+        self.inv_trick = inv_trick
 
         # get dropout layers
         self.drop_layers = self._make_drop()
@@ -1047,9 +1056,12 @@ class CNNFC(nn.Module):
         """
         drop_list = []
         for i_drop in range(len(self.fc_layer_list) - 1):
-            if self.condrop:
-                drop_list.append(ConDropout(p_buckets=self.p_drop,
-                                            n_buckets=self.n_buckets))
+            if not self.pytorch_drop:
+                drop_list.append(ConDropout(cont_pdf=self.method,
+                                            p_buckets=self.p_buckets,
+                                            n_buckets=self.n_buckets,
+                                            p_mean=self.p_mean,
+                                            inv_trick=self.inv_trick))
             else:
                 drop_list.append(nn.Dropout(p=self.p_drop[0]))
         return nn.ModuleList(drop_list)
