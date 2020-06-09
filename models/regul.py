@@ -5,7 +5,7 @@ import json
 import torch
 import pandas as pd
 import numpy as np
-import seaborn as sns
+#import seaborn as sns
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
@@ -236,14 +236,14 @@ if __name__ == '__main__':
           f"over {runs} runs, while median accuracy is {median} "
           f"Maximum {max_acc} and minimum {min_acc}")
 
-    plot_name = experiment_id + "_violinplot.png"
-    pd_acc = pd.DataFrame({'Accuracy': acc_list})
-    sns.set(style="whitegrid")
-    sns_plot = sns.violinplot(y="Accuracy",
-                              data=pd_acc,
-                              scale="width",
-                              inner="point")
-    sns_plot.figure.savefig(os.path.join(save_path, plot_name))
+    # plot_name = experiment_id + "_violinplot.png"
+    # pd_acc = pd.DataFrame({'Accuracy': acc_list})
+    # sns.set(style="whitegrid")
+    # sns_plot = sns.violinplot(y="Accuracy",
+    #                           data=pd_acc,
+    #                           scale="width",
+    #                           inner="point")
+    # sns_plot.figure.savefig(os.path.join(save_path, plot_name))
 
     
 
