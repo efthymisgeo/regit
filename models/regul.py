@@ -160,8 +160,9 @@ if __name__ == '__main__':
                       device=device).to(device)
 
         if importance:
+            layer_list = []
             for i_fc in range(len(fc_setup["fc_layers"])-1):
-                layer_list = [model.fc[i_fc]]
+                layer_list.append(model.fc[i_fc])
             attributor = Attributor(model, layer_list)
         else:
             attributor = None
