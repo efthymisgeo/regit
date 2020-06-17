@@ -5,7 +5,7 @@ import json
 import torch
 import pandas as pd
 import numpy as np
-#import seaborn as sns
+import seaborn as sns
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
@@ -99,6 +99,8 @@ if __name__ == '__main__':
         map_rank_method = exp_setup["idrop"].get("method", "bucket")
         p_buckets = exp_setup["idrop"].get("p_buckets", [0.2, 0.8])
         inv_trick = exp_setup["idrop"].get("inv_trick", "dropout")
+        betta = exp_setup["idrop"].get("betta", 0.9999)
+        rk_history = exp_setup["idrop"].get("rk_history", "short")
     print_config(exp_setup)
 
     # accumulate accuracies per run
@@ -156,6 +158,8 @@ if __name__ == '__main__':
                       idrop_method=map_rank_method,
                       p_buckets=p_buckets,
                       inv_trick=inv_trick,
+                      betta=betta,
+                      rk_history=rk_history,
                       pytorch_dropout=exp_setup["plain_drop"],
                       device=device).to(device)
 
@@ -167,8 +171,14 @@ if __name__ == '__main__':
         else:
             attributor = None
         
-        for tag, value in model.named_parameters():
+        #for tag, value in model.named_parameters():
+        for tag, value in model.named_modules():
             print(tag)
+
+        # for tag, value in model.drop_layers.named_children():
+        #     print(tag)
+        #     print(value)
+            
         print(model)
                          
         # training
@@ -237,14 +247,14 @@ if __name__ == '__main__':
           f"over {runs} runs, while median accuracy is {median} "
           f"Maximum {max_acc} and minimum {min_acc}")
 
-    # plot_name = experiment_id + "_violinplot.png"
-    # pd_acc = pd.DataFrame({'Accuracy': acc_list})
-    # sns.set(style="whitegrid")
-    # sns_plot = sns.violinplot(y="Accuracy",
-    #                           data=pd_acc,
-    #                           scale="width",
-    #                           inner="point")
-    # sns_plot.figure.savefig(os.path.join(save_path, plot_name))
+    plot_name = experiment_id + "_violinplot.png"
+    pd_acc = pd.DataFrame({'Accuracy': acc_list})
+    sns.set(style="whitegrid")
+    sns_plot = sns.violinplot(y="Accuracy",
+                              data=pd_acc,
+                              scale="width",
+                              inner="point")
+    sns_plot.figure.savefig(os.path.join(save_path, plot_name))
 
     
 

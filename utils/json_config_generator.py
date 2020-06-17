@@ -11,7 +11,7 @@ if __name__ == "__main__":
     #cwd = os.getcwd()
     json_template_path = "configs/experiment/aris"
     json_template_path2 = "configs/experiment"
-    json_template_name = "v2_idrop.json"
+    json_template_name = "v2_aris_idrop.json"
     temp_json = os.path.join(json_template_path2, json_template_name)
     
     with open(temp_json, "r") as fd:
@@ -39,7 +39,7 @@ if __name__ == "__main__":
             # set experiment id
             new_conf["experiment_id"] = \
                 experiment_name + str(bucket_list[cnt][0]) + "_" \
-                + str(bucket_list[cnt][1]) + type_of_experiment \
+                + str(bucket_list[cnt][1]) + "_" + type_of_experiment \
                 + "_" + str(noise) + "_" + str(new_conf["runs"]) + "runs"
             # set new .json name
             new_conf_name = experiment_name + "_" + str(bucket_list[cnt][0]) \

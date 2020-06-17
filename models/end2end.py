@@ -11,8 +11,7 @@ from utils.model_utils import train, new_train, test, validate, EarlyStopping, \
 from utils.mnist import MNIST
 from configs.config import Config
 from modules.models import CNN2D, CNNFC
-
-#from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
 def run_training(model,
@@ -54,6 +53,21 @@ def run_training(model,
                                                   patience=optim_setup["wait"],
                                                   verbose=True)
 
+    if experiment_setup["idrop"] != {}:
+        map_rank_method = experiment_setup["idrop"].get("method", "bucket")
+        p_buckets = experiment_setup["idrop"].get("p_buckets", [0.2, 0.8])
+        inv_trick = experiment_setup["idrop"].get("inv_trick", "dropout")
+        betta = experiment_setup["idrop"].get("betta", 0.9999)
+        schedule_strategy = experiment_setup["idrop"].get("schedule", None)
+        rk_history = experiment_setup["idrop"].get("rk_history", "short")
+    else:
+        map_rank_method = "bucket"
+        p_buckets = [0.2, 0.8]
+        inv_trick = "dropout"
+        betta = 0.9999
+        rk_history = "short"
+        schedule_strategy = None
+
     drop_schedule_setup = experiment_setup["use_drop_schedule"]
     if drop_schedule_setup != {}:
         p_drop = drop_schedule_setup["p_drop"]
@@ -61,7 +75,7 @@ def run_training(model,
         if drop_schedule_setup["prob_scheduler"] == "Lin":
             # this setup saturates at epoch peak epoch
             saturation_epoch = drop_schedule_setup["peak_epoch"]
-            delay_epochs = drop_schedule_setup["delay"] * epoch_steps
+            delay_epochs = drop_schedule_setup.get("delay", 0) * epoch_steps
             f_osc = drop_schedule_setup.get('f_osc', 0.0)
             a_osc = drop_schedule_setup.get('a_osc', 0.0)
             p_schedule = \
@@ -92,9 +106,9 @@ def run_training(model,
             raise NotImplementedError(f"{drop_schedule_setup['prob_scheduler']}"
                                       "is not a valid scheduler. " 
                                       "Refusing to proceed.")
-        use_inv_drop = drop_schedule_setup["use_inv_drop"]
-        inv_startegy = drop_schedule_setup["inv_strategy"]
-        reset_counter = not(drop_schedule_setup["track_history"])
+        use_inv_drop = drop_schedule_setup.get("use_inv_drop", False)
+        inv_startegy = drop_schedule_setup.get("inv_strategy", None)
+        reset_counter = not(drop_schedule_setup.get("track_history", True))
     else:
         print("No custom scheduler is used. Proceeding without any.\n"
               "The dropout probability will be fixed from now on.")
@@ -113,8 +127,11 @@ def run_training(model,
     
     # add tensorboard functionality
     # create a summary writer using the specified folder name
-    #writer = SummaryWriter("compare_experiments/" + "bindrop/" + config.model_id)
-    writer=None
+    enable_writer = experiment_setup.get("enable_writer", False)
+    if enable_writer:
+        writer = SummaryWriter("compare_experiments/" + "ddrop/" + experiment_setup["experiment_id"])
+    else:
+        writer=None
 
     test_freq = 10 # 3 for MNIST 5 for CIFAR
     loss_dict = {"train": [], "val": [], "test": []}
@@ -124,6 +141,7 @@ def run_training(model,
     lr_list = []  # lr along epochs
     switches = []  # number of switches in a given layer
 
+    # TODO: lines 139-144 should be removed in future use
     if use_inv_drop:
         print("use inverted dropout strategy {inv_startegy}")
         if reset_counter:
@@ -161,15 +179,6 @@ def run_training(model,
         adapt_to_tensor = attribute_setup.get("adapt_to_tensor", False)
         per_sample_noise = attribute_setup.get("per_sample_noise", False)
         respect_attr = attribute_setup.get("respect_attr", False)
-
-    if experiment_setup["idrop"] != {}:
-        map_rank_method = experiment_setup["idrop"].get("method", "bucket")
-        p_buckets = experiment_setup["idrop"].get("p_buckets", [0.2, 0.8])
-        inv_trick = experiment_setup["idrop"].get("inv_trick", "dropout")
-    else:
-        map_rank_method = "bucket"
-        p_buckets = [0.2, 0.8]
-        inv_trick = "dropout"
         
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
@@ -213,6 +222,7 @@ def run_training(model,
                                     mix_rates=experiment_setup["mixout"],
                                     plain_drop_flag=experiment_setup["plain_drop"],
                                     p_schedule=p_schedule,
+                                    schedule_strategy=schedule_strategy,
                                     use_inverted_strategy=use_inv_drop,
                                     inverted_strategy=inv_startegy,
                                     reset_counter=reset_counter,
@@ -228,7 +238,7 @@ def run_training(model,
                                     respect_attr=respect_attr)
             
             
-        loss_dict["train"].extend(train_loss_list)
+        loss_dict["train"].append(train_loss)
         acc_dict["train"].append(train_acc)
         p_drop_list.append(p_list)
 
@@ -251,20 +261,22 @@ def run_training(model,
                                                     epoch=epoch,
                                                     writer=writer)
 
-        loss_dict["val"].append(val_loss_list)
+        loss_dict["val"].append(val_loss)
         acc_dict["val"].append(val_acc)
 
         if use_optim_scheduler:
             lr_scheduler.step(val_loss)
 
-        #writer.add_scalars("loss_curves", {"train": train_loss,
-        #                                   "val": val_loss}, epoch-1)
-        #writer.add_scalars("accuracy_curve", {"train": train_acc,
-        #                                      "val": val_acc}, epoch-1)
+        if writer is not None:
+            writer.add_scalars("loss_curves", {"train": train_loss,
+                                            "val": val_loss}, epoch-1)
+            writer.add_scalars("accuracy_curve", {"train": train_acc,
+                                                "val": val_acc}, epoch-1)
+            
         if epoch % test_freq == 0 or epoch == 1:
             test_loss, test_acc, _, test_loss_list =\
                 test(model, test_loader)
-            loss_dict["test"].extend(test_loss_list)
+            loss_dict["test"].append(test_loss)
             acc_dict["test"].append(test_acc)
         
         earlystop(val_loss, model)
@@ -276,7 +288,8 @@ def run_training(model,
     print("Finished training")
     print("Model Performance")
     
-    #writer.close()
+    if writer is not None:
+        writer.close()
 
     cnn_setup = model_setup["CNN2D"]
     fc_setup = model_setup["FC"]
@@ -299,6 +312,8 @@ def run_training(model,
                         p_drop=fc_setup["p_drop"],
                         idrop_method=map_rank_method,
                         inv_trick=inv_trick,
+                        betta=betta,
+                        rk_history=rk_history,
                         p_buckets=p_buckets,
                         pytorch_dropout=experiment_setup["plain_drop"],
                         device=model.device).to(model.device)

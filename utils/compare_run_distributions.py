@@ -83,7 +83,7 @@ if __name__ == "__main__":
     #names = ["Raw", "Dropout", "Condrop"]
     #names = ["peak-19", "peak-22", "peak-25", "peak-28"]
     #names = ["peak-19", "peak-22", "peak-25"]
-    names = ["sigma:0.1", "sigma:0.01", "signa:0.005", "sigma:0.001"]
+    names = ["dropout", "buck_0.4-0.6", "buck_0.3-0.7", "buck_0.2-0.8"] #, "buck_0.1-0.9"] #, "sigma:0.001"]
     for i, mdl in enumerate(mdl_list):
         #import pdb; pdb.set_trace()
         result_folder = os.path.join(path2exps, mdl)

@@ -133,10 +133,10 @@ wait"""
             tmp_runner = runner
             command1 = \
                 f"""
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}.json &"""
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_1[0]}_{buck_1[1]}_{exp_type}_{noise}.json &"""
             command2 = \
                 f"""
-srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_shallow.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}.json &"""
+srun --gres=gpu:1 --mem=10G --ntasks=1 -o logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.out -e logs/${{SLURM_JOB_NAME}}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}_${{SLURM_JOB_ID}}.err  python models/regul.py -m configs/model/layers-80sec_deep.json -d configs/dataset/cifar10.json -e configs/experiment/aris/{job_name}_{buck_2[0]}_{buck_2[1]}_{exp_type}_{noise}.json &"""
             tmp_runner = tmp_runner + command1 + command2 + wait
     
             write_approval = True 

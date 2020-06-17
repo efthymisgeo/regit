@@ -37,6 +37,12 @@ class ConDropout(nn.Module):
         correction_factor(float): the factor which is used for mean correction
         tollerance(float): when mean approx is acceptable
         inv_trick(string): which inversion trick to use
+        betta (float): parameter which handles the change of the mean 
+            probability of each neuron
+        scheduling (str): 
+        rk_history (str): short/long short is used for getting a short memory
+            ranking (per batch) for all units while `long` encodes the fact
+            that a neuron ranking is based on previous rankings
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
@@ -45,9 +51,14 @@ class ConDropout(nn.Module):
                  p_mean=0.5,
                  correction_factor=0.01,
                  tollerance=0.01,
-                 inv_trick="dropout"):
+                 inv_trick="dropout",
+                 betta=0.999,
+                 scheduling="mean",
+                 rk_history="short"):
         super(ConDropout, self).__init__()
         self.cont_pdf = cont_pdf
+        self.rk_history = rk_history
+        self.scheduling = scheduling
         if self.cont_pdf not in SUPPORTED_DISTRIBUTIONS:
                 raise NotImplementedError("Not a supported pdf")
         elif self.cont_pdf == "bucket":
@@ -55,6 +66,9 @@ class ConDropout(nn.Module):
                 self.p_buckets = p_buckets
             else:
                 self.p_buckets = [p_buckets]
+            if len(self.p_buckets) == 2:
+                self.p_low = self.p_buckets[0]
+                self.p_high = self.p_buckets[1]
             self.p_mean = np.mean(self.p_buckets)   
             self.n_buckets = n_buckets
             self.split_intervals = self._get_bucket_intervals()
@@ -69,9 +83,30 @@ class ConDropout(nn.Module):
             self.cf = correction_factor
             self.tollerance = tollerance
         
-        self._init_message()
-        self.inv_trick = inv_trick
         
+        self.inv_trick = inv_trick
+        if self.inv_trick == "exp-average":
+            self.betta = betta
+            self.prob_avg = None
+    
+        self._init_message()
+
+    def prob_step(self, p_drop, update="mean"):
+        """Function which changes p_drop
+        Args:
+            p_drop (float/list):
+            update(str):
+        """
+        #import pdb; pdb.set_trace()
+        if update == "mean":
+            self.p_mean = p_drop
+        elif update == "bucket":
+            self.p_buckets = [self.p_mean - p_drop, self.p_mean + p_drop]
+        elif update == "flip":
+            self.p_buckets = [self.p_low - p_drop, self.p_high + p_drop]
+        else:
+            raise NotImplementedError("Not a valid probability update")
+       
     def _get_bucket_intervals(self):
         """
         Returns a list with the corresponding interval bounds for each
@@ -175,7 +210,7 @@ class ConDropout(nn.Module):
             mean_prob = torch.mean(unit_probs)
         #TODO investigate tollerance usage
         #mean_mask = torch.abs(self.p_mean - mean_prob) >= self.tollerance
-        cf = torch.div(self.p_mean, mean_prob)
+        cf = torch.div(1 - self.p_mean, mean_prob)
         fixed_probs = torch.clamp(torch.mul(unit_probs, cf) ,0.0, 1.0)
         return fixed_probs
     
@@ -210,6 +245,7 @@ class ConDropout(nn.Module):
             elif self.cont_pdf == "min-max":
                 prob_masks = 1 - self._min_max(ranking)    
             prob_masks = self._fix_pdf(prob_masks)
+                
             #print(f"Mixed Probabilistic Masks are {prob_masks}")
             prob_masks = prob_masks.expand_as(input)
             #print(f"Mixed Probabilistic Masks AFTER EXPANSION are {prob_masks}")
@@ -217,15 +253,38 @@ class ConDropout(nn.Module):
             # print(f"the sorted indices are {sorted_units_transform}")
             # print(f"Probabilistic Masks are {prob_masks}")
             # import pdb; pdb.set_trace()
+        
+
+        if self.inv_trick == "exp-average":
+            if self.prob_avg is None:
+                self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
+            else:
+                self.prob_avg = \
+                    self.betta * self.prob_avg + (1 - self.betta) * torch.mean(prob_masks, dim=0)
+            
+            if self.rk_history == "long":
+                #import pdb; pdb.set_trace()
+                prob_masks = self.prob_avg.expand_as(prob_masks)
+                #import pdb; pdb.set_trace()
+
+
+
+        
         # sample Be(p_interval)
         #print(f"Probabilistic Mask is {prob_masks}")
+        #import pdb; pdb.set_trace()
         bin_masks = torch.bernoulli(prob_masks)
         #print(f"Bin Mask is {bin_masks}")
+        #import pdb; pdb.set_trace()
         # scaling trick
         if self.inv_trick == "dropout":
             masks = torch.div(bin_masks, 1 - self.p_mean)
-        else:
+        elif self.inv_trick == "temporal":
             masks = torch.div(bin_masks, prob_masks)
+        elif self.inv_trick == "exp-average":
+            masks =  torch.div(bin_masks, self.prob_avg)
+        else:
+            raise NotImplementedError("Invalid inversion rescaling trick")
         return masks
     
     def _count_buckets(self):
@@ -241,6 +300,11 @@ class ConDropout(nn.Module):
         # counter for every neuron
         """
         pass
+
+    def get_unit_pdf(self):
+        """Helper function which get the current unit pdf in an unsorted manner
+        """
+        return self.prob_avg.clone().detach().cpu().numpy()
             
     def forward(self, input, ranking=None):
         if self.training:

@@ -937,6 +937,8 @@ class CNNFC(nn.Module):
                  p_drop=0.5,
                  idrop_method="bucket",
                  inv_trick="dropout",
+                 betta=0.9999,
+                 rk_history="short",
                  p_buckets=[0.25, 0.75],
                  pytorch_dropout=False,
                  device="cpu"):
@@ -972,6 +974,8 @@ class CNNFC(nn.Module):
         self.pytorch_drop = False
         self.method = idrop_method
         self.p_mean = p_drop
+        self.betta = betta
+        self.rk_history = rk_history
         self.p_buckets = p_buckets
         self.n_buckets = len(p_buckets)
         self.inv_trick = inv_trick
@@ -980,6 +984,13 @@ class CNNFC(nn.Module):
         self.drop_layers = self._make_drop()
         
         #self.total_sw_cnt, self.switch_counter = self.reset_drop_cnt()
+    
+    def set_prob(self, p_drop, update="mean"):
+        """Helper function to access internal 'step' function of the
+        dropout layers
+        """
+        for fc_drop in self.drop_layers:
+            fc_drop.prob_step(p_drop, update=update)
 
     def _get_activ(self):
         """Returns activation function 
@@ -1061,7 +1072,9 @@ class CNNFC(nn.Module):
                                             p_buckets=self.p_buckets,
                                             n_buckets=self.n_buckets,
                                             p_mean=self.p_mean,
-                                            inv_trick=self.inv_trick))
+                                            inv_trick=self.inv_trick,
+                                            betta=self.betta,
+                                            rk_history=self.rk_history))
             else:
                 drop_list.append(nn.Dropout(p=self.p_drop[0]))
         return nn.ModuleList(drop_list)

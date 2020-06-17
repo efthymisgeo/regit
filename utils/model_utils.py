@@ -63,8 +63,13 @@ class LinearScheduler(Scheduler):
     a line between them by interpolating `n_points` between them. Moreover the
     class offers the ability of additing oscillating noise in the scheduler.
     """
-    def __init__(self, point, n_points, delay=0.0, eps=0.000001,
-                 f_osc=0, a_osc=0.0):
+    def __init__(self,
+                 point,
+                 n_points,
+                 delay=0.0,
+                 eps=0.000001,
+                 f_osc=0,
+                 a_osc=0.0):
         super(LinearScheduler, self).__init__()
         self.start = point[0]
         self.end = point[1]
@@ -639,6 +644,7 @@ def new_train(model,
               mix_rates=False,
               plain_drop_flag=False,
               p_schedule=None,
+              schedule_strategy="mean",
               use_inverted_strategy=True,
               inverted_strategy="importance",
               reset_counter=False,
@@ -669,6 +675,8 @@ def new_train(model,
         mix_rates (bool): handles the use of mixed drop rates
         plain_drop (bool): used for traditional dropour setup
         p_schedule (Scheduler): the scheduler instance which is used
+        schedule_strategy (str): which probability will be sheduled
+            "mean", "buck", "flip"
         use_inverted_strategy (bool): handles the use of inverted drop strategy
         inverted_strategy (str): specifies the strategy to be used
         reset_counter (bool): reset or not the switch counter at every epoch
@@ -733,9 +741,9 @@ def new_train(model,
     #         p_drop = drop_list[-1]
     
     if p_schedule is not None:
+        schedule_strategy = schedule_strategy
         # TODO investigate whether to use get_prob() or step()
-        p_drop = p_schedule.get_prob()
-        print("Using custom scheduler")
+        print(f"Using custom scheduler {p_schedule} with strategy {schedule_strategy}")
         
     # if plain_drop_flag:
     #     print("Enabling plain dropout")
@@ -759,6 +767,11 @@ def new_train(model,
         data, target = data.to(model.device), target.to(model.device)
         batch_size = data.size(0)
         
+
+        if p_schedule is not None:
+            p_s = p_schedule.step()
+            model.set_prob(p_s, update=schedule_strategy)
+            
         # if p_schedule is not None:
         #     if batch_idx == 0 and epoch ==1:
         #         print(f"Using custom scheduler {p_schedule}")
@@ -801,9 +814,10 @@ def new_train(model,
 
         #prob_value = p_drop
 
-        # if epoch==1 and batch_idx == 500:
-        #     import pdb; pdb.set_trace()
-        #     print(model.switch_counter) 
+        # if (batch_idx+1) == 500:
+        #     pdfs = []
+        #     for drop_fc in model.drop_layers:
+        #         pdfs.append(drop_fc.get_unit_pdf())
 
         #######################################################################
         ############ TENSORBOARD LOGGING    ###################################
@@ -813,20 +827,45 @@ def new_train(model,
         pred = output.argmax(dim=1, keepdim=True)
         correct += pred.eq(target.view_as(pred)).sum().item()
         ##import pdb; pdb.set_trace()
-        #if (batch_idx+1) % 500 == 0 and (epoch+1) % 4 == 0:
+        if ((batch_idx+1) % 500 == 0)  and ((epoch+1) % 2 == 0) and (writer is not None):
         #    for tag, value in model.named_parameters():
         #        tag = tag.replace(".", "/")
-        #        writer.add_histogram(tag,
-        #                             value.data.cpu(),
-        #                             step, bins="auto")
+            pdfs = []
+            for i, drop_fc in model.drop_layers.named_children():
+                tag = f"condrop.{i}"
+                pdf = drop_fc.get_unit_pdf()
+                
+                writer.add_histogram(tag,
+                                     pdf,
+                                     step, bins="auto")
+                
+                n_units = np.arange(pdf.shape[0])
+                sort_pdf = np.sort(pdf)
+                
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                ax.plot(n_units, sort_pdf)
+
+                # fig.legend(loc='upper left')
+                # plt.xlabel('Ordered Units')
+                # plt.ylabel('Drop pdf')
+                writer.add_figure(tag+f".{epoch}",
+                                  fig,
+                                  step)
+
+                # writer.add_histogram(tag + ".sorted",
+                #                      np.sort(pdf),
+                #                      step, bins="tensorflow")
+                
+        
         #        #writer.add_histogram(tag + '/grad',
         #        #                     value.grad.data.cpu(),
         #        #                     step, bins="auto")
-        #        writer.flush()
-        #    step += 1
+                writer.flush()
+            step += 1
     
-    # if p_schedule is not None:
-    #     print(f"Scheduler probability is {p_drop}")    
+    if p_schedule is not None:
+        print(f"Scheduler probability is {p_s}")    
 
         
     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
