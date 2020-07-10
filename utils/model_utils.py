@@ -657,7 +657,11 @@ def new_train(model,
               adapt_to_tensor=False,
               momentum=None,
               per_sample_noise=False,
-              respect_attr=False):
+              respect_attr=False,
+              calc_stats=False,
+              top_percentile={},
+              bottom_percentile={},
+              unit_tracker={}):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -703,11 +707,16 @@ def new_train(model,
             intuitively means that we "respect" the unit's importance by
             leaving it unchanged when the std is small and disturb it a lot
             when it std is high.
+        calc_stats (bool): when true the attributor also returns per batch
+            statistics
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
         prob_value (float): list of dropout probabilities
     """
+    n_units = 10
+    cyclic = False
+    per_class = False
     skip_ranks = plain_drop_flag
     model.train()
     train_loss = 0
@@ -715,6 +724,9 @@ def new_train(model,
     batch_loss = []
     step = 0
     prob_value = 0
+    old_mean = 0
+    old_std = 0
+    old_norm = 0
 
     # SAMPLING = sampling_imp # sampling masks in a minibatch (aka calculating attributions)
     # if isinstance(sampling_imp, list):
@@ -761,7 +773,12 @@ def new_train(model,
     
     # if RESET_COUNTER:
     #     model.reset_drop_cnt()
-
+    if cyclic:
+        model.set_prob(p_drop=.5, update="re-init")
+    
+    epoch_statistics = {}
+    unit_tracker = {k: [] for k in range(0, 64)}
+    #unit_tracker = dict.fromkeys(range(0, 64), [])
     for batch_idx, (data, target) in tqdm(enumerate(train_loader),
                                                     total=len(train_loader)):
         data, target = data.to(model.device), target.to(model.device)
@@ -786,7 +803,7 @@ def new_train(model,
         model.eval()
         rankings = None
         if skip_ranks is False:
-            rankings = \
+            rankings, statistics, total_conductance, per_class_cond = \
                 attributor.get_attributions(dl,
                                             baselines=baseline,
                                             target=target,
@@ -799,8 +816,32 @@ def new_train(model,
                                             aggregate=aggregate,
                                             per_sample_noise=per_sample_noise,
                                             respect_attr=respect_attr,
-                                            batch_idx=batch_idx)
-            
+                                            batch_idx=batch_idx,
+                                            calc_stats=calc_stats)
+            #import pdb; pdb.set_trace()
+            # sos: this calculation only works for single layer DNN
+            if calc_stats and (not per_class):
+                if batch_idx == 0:
+                    epoch_statistics = {"mean": statistics[0]["mean"][0].detach().cpu().numpy(),
+                                        "std": statistics[0]["std"][0].detach().cpu().numpy(),
+                                        "skew": statistics[0]["skew"][0].detach().cpu().numpy(),
+                                        "kurt": statistics[0]["kurt"][0].detach().cpu().numpy(),
+                                        "sparse": statistics[0]["sparse"][0]}
+                else:
+                    for stat_id, val in epoch_statistics.items():
+                        if stat_id == "sparse":
+                            val = val + statistics[0][stat_id][0]
+                        else:
+                            val = val + statistics[0][stat_id][0].detach().cpu().numpy()
+                
+                # old_rank = rank_unnorm[0] - torch.mean(rank_unnorm[0],
+                #                                        dim=0,
+                #                                        keepdim=True)
+                # old_rank = old_rank - torch.mean(old_rank, dim=0)
+                # old_mean += torch.mean(old_rank).detach().cpu().numpy()
+                # old_std += torch.std(old_rank).detach().cpu().numpy()
+                # old_norm += torch.norm(old_rank).detach().cpu().numpy()
+        #print(total_conductance[0][:10, :])
         model.train()
         output = model(data, rankings)
         
@@ -826,10 +867,118 @@ def new_train(model,
         # however we track it for debugging purposes
         pred = output.argmax(dim=1, keepdim=True)
         correct += pred.eq(target.view_as(pred)).sum().item()
-        ##import pdb; pdb.set_trace()
-        if ((batch_idx+1) % 500 == 0)  and ((epoch+1) % 2 == 0) and (writer is not None):
+
+        # Calculate the 50th percentile for the ranking distribution in hand
+        # loop over all units and get its corresponding bucket
+        perc_ranks = rankings[0].detach().cpu().numpy()
+        rank_median = np.median(perc_ranks)
+        equiranked = 0
+        for nid, p_rk in enumerate(perc_ranks):
+            if p_rk > rank_median:
+                unit_tracker[nid].append(1)
+                top_percentile[nid] += 1
+            elif p_rk < rank_median:
+                unit_tracker[nid].append(-1)
+                bottom_percentile[nid] += 1
+            else:
+                unit_tracker[nid].append(1)
+                equiranked += 1
+                top_percentile[nid] += 1
+        
+        # print(f"Number of equiranked is {equiranked}")
+        #import pdb; pdb.set_trace()
+        if ((batch_idx+1) % 130 == 0)  and ((epoch+1) % 2 == 0) and (writer is not None):
         #    for tag, value in model.named_parameters():
         #        tag = tag.replace(".", "/")
+            per_unit_ranks = []
+            #import pdb; pdb.set_trace()
+            writer.add_histogram("mean conductance per unit", rankings[0], step)
+            writer.add_histogram("total conductance", total_conductance[0], step)
+            
+            # add median to study how uch nonlinear effect we have
+            med, _ = torch.median(total_conductance[0], dim=0)
+            writer.add_histogram("median conductance per unit",
+                                 med,
+                                 global_step=step)
+            for k, p_class in enumerate(per_class_cond):
+                writer.add_histogram(f"mean conductance in class {k}",
+                                     p_class,
+                                     step)
+            for nid in range(n_units):
+                nid_name = "cond_unit_" + str(nid)
+                writer.add_histogram(nid_name,
+                                     total_conductance[0][:, nid],
+                                     step)
+
+            neuron_ids = list(bottom_percentile.keys())
+            bottom_perc = list(bottom_percentile.values())
+            bottom_perc = [i/(147*(epoch)) for i in bottom_perc]
+            top_perc = list(top_percentile.values())
+            top_perc = [i/(147*(epoch)) for i in top_perc]
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.bar(neuron_ids, bottom_perc, color="blue",
+                   edgecolor="black", hatch="\\")
+            ax.bar(neuron_ids, top_perc,
+                   bottom=bottom_perc,
+                   color="red",
+                   edgecolor="black", hatch="/")
+            writer.add_figure(f"bucket_plot_{epoch}", fig, step)
+            plt.close(fig)
+            
+            rankings = rankings[0].detach().cpu().numpy()
+            n_units = np.arange(rankings.shape[0])
+            sort_pdf = np.sort(rankings)
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(n_units, sort_pdf)
+            writer.add_figure("mean_conductance_curve"+f".{epoch}",
+                              fig,
+                              step)
+
+            plt.close(fig)
+
+            # unit tracker plot
+            #import pdb; pdb.set_trace()
+            unit_0 = unit_tracker[0]
+            unit_5 = unit_tracker[5]
+            unit_10 = unit_tracker[10]
+            unit_15 = unit_tracker[15]
+            unit_20 = unit_tracker[20]
+            unit_25 = unit_tracker[25]
+            unit_35 = unit_tracker[35]
+            unit_45 = unit_tracker[45]
+            unit_55 = unit_tracker[55]
+            unit_63 = unit_tracker[63]
+
+            t_steps = list(range(0, len(unit_tracker[0])))
+            fig, axs = plt.subplots(10)
+            axs[0].plot(t_steps, unit_0)
+            axs[1].plot(t_steps, unit_5)
+            axs[2].plot(t_steps, unit_10)
+            axs[3].plot(t_steps, unit_15)
+            axs[4].plot(t_steps, unit_20)
+            axs[5].plot(t_steps, unit_25)
+            axs[6].plot(t_steps, unit_35)
+            axs[7].plot(t_steps, unit_45)
+            axs[8].plot(t_steps, unit_55)
+            axs[9].plot(t_steps, unit_63)
+            writer.add_figure(f"bucket_per_update_step_{epoch}", fig, step)
+            plt.close(fig)
+
+            # min-max normalization over conductance scores
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111)
+            # mod_rank = \
+            #     (rankings - min(rankings)) / (max(rankings) - min(rankings))
+            # ax.plot(n_units, np.sort(mod_rank))
+            # writer.add_figure("min_max_mean_conductance_curve"+f".{epoch}",
+            #                   fig,
+            #                   step)
+            # plt.close(fig)
+
+
+
             pdfs = []
             for i, drop_fc in model.drop_layers.named_children():
                 tag = f"condrop.{i}"
@@ -838,7 +987,7 @@ def new_train(model,
                 writer.add_histogram(tag,
                                      pdf,
                                      step, bins="auto")
-                
+
                 n_units = np.arange(pdf.shape[0])
                 sort_pdf = np.sort(pdf)
                 
@@ -875,10 +1024,20 @@ def new_train(model,
     train_loss /= len(train_loader)
     train_acc = 100. * correct / len(train_loader.sampler)
 
+    old_stats = []
+    if not skip_ranks:
+        # old_stats.append(old_mean / len(train_loader.sampler))
+        # old_stats.append(old_std / len(train_loader.sampler))
+        # old_stats.append(old_norm / len(train_loader.sampler))
+        for stat_id, val in epoch_statistics.items():
+            val = val / len(train_loader.sampler)
+        
+
+
     #writer.add_scalars("loss_curves", {"train": train_loss}, epoch-1)
     #writer.add_scalars("accuracy_curve", {"train": train_acc}, epoch-1)
     
-    return train_loss, train_acc, prob_value, batch_loss
+    return train_loss, train_acc, prob_value, batch_loss, epoch_statistics, old_stats
 
 
 def validate(model,

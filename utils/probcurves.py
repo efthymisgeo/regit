@@ -5,22 +5,24 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     # initalize the state for 50 neurons upon a uniform prior
-    mimic_flag = True
+    mimic_flag = False
     folder = "dropcurves/"
     if mimic_flag:
-        folder = folder + "mimic/"
+        folder = folder + "zero_mimic/"
     else:
-        folder = folder + "normal/"
+        folder = folder + "zero_normal/"
     n_units = 500
+    p_init = 0.5
     x_axis = np.arange(n_units)
-    init_state = 0.5 * np.ones(n_units)
+    init_state = p_init * np.ones(n_units)
     mu, sigma = 0.0, 0.1
     updates = 600 * 30 + 1
     p_high = 0.9
     p_low = 1 - p_high
-    betta = [0.9999, 0.9996, 0.9993, 0.999, 0.99, 0.9]
+    #betta = [0.9999, 0.9996, 0.9993, 0.999, 0.99, 0.97, 0.95, 0.93, 0.9, 0.87, 0.85]
+    betta = [0.9, 0.87, 0.85, .83, .8, .7]
     plot_at = [0, 5, 10, 15, 50, 100, 200, 300]
-    per_epoch = [600*i for i in range(40)]
+    per_epoch = [600*i for i in range(1)]
     plot_at.extend(per_epoch)
     for k in range(updates):
         rankings = np.random.normal(mu, sigma, n_units)

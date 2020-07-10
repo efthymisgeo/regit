@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import torch
+import numpy as np
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
@@ -27,6 +28,7 @@ def run_training(model,
     """ # TODO add docstrings
     """
     NEW_VERSION = True
+    calc_stats = experiment_setup["compute_imp_stats"]
     regularization = experiment_setup["regularization"]
     optim_setup = experiment_setup["optimization"]
     print(f"Model {experiment_setup['model_name']} with "
@@ -179,6 +181,9 @@ def run_training(model,
         adapt_to_tensor = attribute_setup.get("adapt_to_tensor", False)
         per_sample_noise = attribute_setup.get("per_sample_noise", False)
         respect_attr = attribute_setup.get("respect_attr", False)
+
+    top_percentile = dict.fromkeys(range(0, 64), 0)
+    bottom_percentile = dict.fromkeys(range(0, 64), 0)
         
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
@@ -210,7 +215,7 @@ def run_training(model,
                     per_sample_noise=per_sample_noise,
                     respect_attr=respect_attr)
         else:
-            train_loss, train_acc, p_list, train_loss_list = \
+            train_loss, train_acc, p_list, train_loss_list, epoch_statistics, orig_stats = \
                           new_train(model,
                                     train_loader,
                                     optimizer,
@@ -235,7 +240,10 @@ def run_training(model,
                                     adapt_to_tensor=adapt_to_tensor,
                                     momentum=momentum,
                                     per_sample_noise=per_sample_noise,
-                                    respect_attr=respect_attr)
+                                    respect_attr=respect_attr,
+                                    calc_stats=calc_stats,
+                                    top_percentile=top_percentile,
+                                    bottom_percentile=bottom_percentile)
             
             
         loss_dict["train"].append(train_loss)
@@ -267,11 +275,26 @@ def run_training(model,
         if use_optim_scheduler:
             lr_scheduler.step(val_loss)
 
+        num_units = 5
         if writer is not None:
             writer.add_scalars("loss_curves", {"train": train_loss,
                                             "val": val_loss}, epoch-1)
             writer.add_scalars("accuracy_curve", {"train": train_acc,
                                                 "val": val_acc}, epoch-1)
+            # writer.add_scalar("orig_mean", orig_stats[0], epoch-1)
+            # writer.add_scalar("orig_std", orig_stats[1], epoch-1)
+            # writer.add_scalar("orig_norm", orig_stats[2], epoch-1)
+            if epoch_statistics != {}:
+                for key, val in epoch_statistics.items():
+                    if key == "sparse":
+                        writer.add_scalar(f"{key}_total", val, epoch-1)
+                    else:
+                        writer.add_scalar(f"{key}_total", np.mean(val), epoch-1)
+                        stat_dict = {}
+                        for i in range(num_units):
+                            stat_dict[f"unit_{i}"] = val[i]
+                        for i in range(num_units):
+                            writer.add_scalar(f"{key}_unit_{i}", stat_dict[f"unit_{i}"], epoch-1)
             
         if epoch % test_freq == 0 or epoch == 1:
             test_loss, test_acc, _, test_loss_list =\
