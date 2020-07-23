@@ -9,8 +9,8 @@ import os
 #from matplotlib import pyplot as plt
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import euclidean_distances
+#from sklearn.base import BaseEstimator, ClassifierMixin
+#from sklearn.metrics import euclidean_distances
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from configs.config import Config
@@ -636,6 +636,7 @@ def new_train(model,
               train_loader,
               optimizer,
               epoch,
+              criterion,
               regularization=True,
               writer=None,
               attributor=None,
@@ -661,7 +662,8 @@ def new_train(model,
               calc_stats=False,
               top_percentile={},
               bottom_percentile={},
-              unit_tracker={}):
+              unit_tracker={},
+              device="cpu"):
     """
     Function that trains the given model for an epoch and returns the 
     respective loss and accuracy after the epoch is over.
@@ -671,6 +673,7 @@ def new_train(model,
             pytorch iterator
         optimizer (torch.optim.optimizer): optimizer to be used
         epoch (int): epoch id
+        criterion (torch.nn): the loss function which will be used
         writer (torch.utils.tensorboard): SummaryWriter which is used for
             Tensorboard logging
         attributor (list): list of captum.attr instances which is used for
@@ -709,6 +712,7 @@ def new_train(model,
             when it std is high.
         calc_stats (bool): when true the attributor also returns per batch
             statistics
+        device (str): the device in which the models are stored
     Returns:
         train_loss (float): list of train losses per epoch
         train_acc (float): list of train accuracies per epoch
@@ -781,9 +785,9 @@ def new_train(model,
     #unit_tracker = dict.fromkeys(range(0, 64), [])
     for batch_idx, (data, target) in tqdm(enumerate(train_loader),
                                                     total=len(train_loader)):
-        data, target = data.to(model.device), target.to(model.device)
+        #import pdb; pdb.set_trace()
+        data, target = data.to(device), target.to(device)
         batch_size = data.size(0)
-        
 
         if p_schedule is not None:
             p_s = p_schedule.step()
@@ -797,14 +801,16 @@ def new_train(model,
         #         # p_drop = (plain_drop, intel_drop)
         #         p_drop = (max_p_drop - p_drop, p_drop)
 
-        baseline = data * 0.0
-        dl = data.clone()       
+        baseline = data * 0.0       
         #import pdb; pdb.set_trace()                                
         model.eval()
         rankings = None
+        #import pdb; pdb.set_trace()
         if skip_ranks is False:
+            #import pdb; pdb.set_trace()
+            dl = data.clone()
             rankings, statistics, total_conductance, per_class_cond = \
-                attributor.get_attributions(dl,
+                attributor.get_attributions(data,
                                             baselines=baseline,
                                             target=target,
                                             n_steps=n_steps,
@@ -818,6 +824,7 @@ def new_train(model,
                                             respect_attr=respect_attr,
                                             batch_idx=batch_idx,
                                             calc_stats=calc_stats)
+            
             #import pdb; pdb.set_trace()
             # sos: this calculation only works for single layer DNN
             if calc_stats and (not per_class):
@@ -847,7 +854,7 @@ def new_train(model,
         
         optimizer.zero_grad()
         
-        loss = F.nll_loss(output, target)
+        loss = criterion(output, target)
         batch_loss.append(loss.item())
         train_loss += loss.item()
         loss.backward()
@@ -870,101 +877,102 @@ def new_train(model,
 
         # Calculate the 50th percentile for the ranking distribution in hand
         # loop over all units and get its corresponding bucket
-        perc_ranks = rankings[0].detach().cpu().numpy()
-        rank_median = np.median(perc_ranks)
-        equiranked = 0
-        for nid, p_rk in enumerate(perc_ranks):
-            if p_rk > rank_median:
-                unit_tracker[nid].append(1)
-                top_percentile[nid] += 1
-            elif p_rk < rank_median:
-                unit_tracker[nid].append(-1)
-                bottom_percentile[nid] += 1
-            else:
-                unit_tracker[nid].append(1)
-                equiranked += 1
-                top_percentile[nid] += 1
-        
-        # print(f"Number of equiranked is {equiranked}")
-        #import pdb; pdb.set_trace()
-        if ((batch_idx+1) % 130 == 0)  and ((epoch+1) % 2 == 0) and (writer is not None):
-        #    for tag, value in model.named_parameters():
-        #        tag = tag.replace(".", "/")
-            per_unit_ranks = []
-            #import pdb; pdb.set_trace()
-            writer.add_histogram("mean conductance per unit", rankings[0], step)
-            writer.add_histogram("total conductance", total_conductance[0], step)
+        if (not skip_ranks) and calc_stats:
+            perc_ranks = rankings[0].detach().cpu().numpy()
+            rank_median = np.median(perc_ranks)
+            equiranked = 0
+            for nid, p_rk in enumerate(perc_ranks):
+                if p_rk > rank_median:
+                    unit_tracker[nid].append(1)
+                    top_percentile[nid] += 1
+                elif p_rk < rank_median:
+                    unit_tracker[nid].append(-1)
+                    bottom_percentile[nid] += 1
+                else:
+                    unit_tracker[nid].append(1)
+                    equiranked += 1
+                    top_percentile[nid] += 1
             
-            # add median to study how uch nonlinear effect we have
-            med, _ = torch.median(total_conductance[0], dim=0)
-            writer.add_histogram("median conductance per unit",
-                                 med,
-                                 global_step=step)
-            for k, p_class in enumerate(per_class_cond):
-                writer.add_histogram(f"mean conductance in class {k}",
-                                     p_class,
-                                     step)
-            for nid in range(n_units):
-                nid_name = "cond_unit_" + str(nid)
-                writer.add_histogram(nid_name,
-                                     total_conductance[0][:, nid],
-                                     step)
-
-            neuron_ids = list(bottom_percentile.keys())
-            bottom_perc = list(bottom_percentile.values())
-            bottom_perc = [i/(147*(epoch)) for i in bottom_perc]
-            top_perc = list(top_percentile.values())
-            top_perc = [i/(147*(epoch)) for i in top_perc]
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            ax.bar(neuron_ids, bottom_perc, color="blue",
-                   edgecolor="black", hatch="\\")
-            ax.bar(neuron_ids, top_perc,
-                   bottom=bottom_perc,
-                   color="red",
-                   edgecolor="black", hatch="/")
-            writer.add_figure(f"bucket_plot_{epoch}", fig, step)
-            plt.close(fig)
-            
-            rankings = rankings[0].detach().cpu().numpy()
-            n_units = np.arange(rankings.shape[0])
-            sort_pdf = np.sort(rankings)
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            ax.plot(n_units, sort_pdf)
-            writer.add_figure("mean_conductance_curve"+f".{epoch}",
-                              fig,
-                              step)
-
-            plt.close(fig)
-
-            # unit tracker plot
+            # print(f"Number of equiranked is {equiranked}")
             #import pdb; pdb.set_trace()
-            unit_0 = unit_tracker[0]
-            unit_5 = unit_tracker[5]
-            unit_10 = unit_tracker[10]
-            unit_15 = unit_tracker[15]
-            unit_20 = unit_tracker[20]
-            unit_25 = unit_tracker[25]
-            unit_35 = unit_tracker[35]
-            unit_45 = unit_tracker[45]
-            unit_55 = unit_tracker[55]
-            unit_63 = unit_tracker[63]
+            if ((batch_idx+1) % 130 == 0)  and ((epoch+1) % 2 == 0) and (writer is not None):
+            #    for tag, value in model.named_parameters():
+            #        tag = tag.replace(".", "/")
+                per_unit_ranks = []
+                #import pdb; pdb.set_trace()
+                writer.add_histogram("mean conductance per unit", rankings[0], step)
+                writer.add_histogram("total conductance", total_conductance[0], step)
+                
+                # add median to study how uch nonlinear effect we have
+                med, _ = torch.median(total_conductance[0], dim=0)
+                writer.add_histogram("median conductance per unit",
+                                    med,
+                                    global_step=step)
+                for k, p_class in enumerate(per_class_cond):
+                    writer.add_histogram(f"mean conductance in class {k}",
+                                        p_class,
+                                        step)
+                for nid in range(n_units):
+                    nid_name = "cond_unit_" + str(nid)
+                    writer.add_histogram(nid_name,
+                                        total_conductance[0][:, nid],
+                                        step)
 
-            t_steps = list(range(0, len(unit_tracker[0])))
-            fig, axs = plt.subplots(10)
-            axs[0].plot(t_steps, unit_0)
-            axs[1].plot(t_steps, unit_5)
-            axs[2].plot(t_steps, unit_10)
-            axs[3].plot(t_steps, unit_15)
-            axs[4].plot(t_steps, unit_20)
-            axs[5].plot(t_steps, unit_25)
-            axs[6].plot(t_steps, unit_35)
-            axs[7].plot(t_steps, unit_45)
-            axs[8].plot(t_steps, unit_55)
-            axs[9].plot(t_steps, unit_63)
-            writer.add_figure(f"bucket_per_update_step_{epoch}", fig, step)
-            plt.close(fig)
+                neuron_ids = list(bottom_percentile.keys())
+                bottom_perc = list(bottom_percentile.values())
+                bottom_perc = [i/(147*(epoch)) for i in bottom_perc]
+                top_perc = list(top_percentile.values())
+                top_perc = [i/(147*(epoch)) for i in top_perc]
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                ax.bar(neuron_ids, bottom_perc, color="blue",
+                    edgecolor="black", hatch="\\")
+                ax.bar(neuron_ids, top_perc,
+                    bottom=bottom_perc,
+                    color="red",
+                    edgecolor="black", hatch="/")
+                writer.add_figure(f"bucket_plot_{epoch}", fig, step)
+                plt.close(fig)
+                
+                rankings = rankings[0].detach().cpu().numpy()
+                n_units = np.arange(rankings.shape[0])
+                sort_pdf = np.sort(rankings)
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                ax.plot(n_units, sort_pdf)
+                writer.add_figure("mean_conductance_curve"+f".{epoch}",
+                                fig,
+                                step)
+
+                plt.close(fig)
+
+                # unit tracker plot
+                #import pdb; pdb.set_trace()
+                unit_0 = unit_tracker[0]
+                unit_5 = unit_tracker[5]
+                unit_10 = unit_tracker[10]
+                unit_15 = unit_tracker[15]
+                unit_20 = unit_tracker[20]
+                unit_25 = unit_tracker[25]
+                unit_35 = unit_tracker[35]
+                unit_45 = unit_tracker[45]
+                unit_55 = unit_tracker[55]
+                unit_63 = unit_tracker[63]
+
+                t_steps = list(range(0, len(unit_tracker[0])))
+                fig, axs = plt.subplots(10)
+                axs[0].plot(t_steps, unit_0)
+                axs[1].plot(t_steps, unit_5)
+                axs[2].plot(t_steps, unit_10)
+                axs[3].plot(t_steps, unit_15)
+                axs[4].plot(t_steps, unit_20)
+                axs[5].plot(t_steps, unit_25)
+                axs[6].plot(t_steps, unit_35)
+                axs[7].plot(t_steps, unit_45)
+                axs[8].plot(t_steps, unit_55)
+                axs[9].plot(t_steps, unit_63)
+                writer.add_figure(f"bucket_per_update_step_{epoch}", fig, step)
+                plt.close(fig)
 
             # min-max normalization over conductance scores
             # fig = plt.figure()
@@ -979,39 +987,39 @@ def new_train(model,
 
 
 
-            pdfs = []
-            for i, drop_fc in model.drop_layers.named_children():
-                tag = f"condrop.{i}"
-                pdf = drop_fc.get_unit_pdf()
-                
-                writer.add_histogram(tag,
-                                     pdf,
-                                     step, bins="auto")
+                pdfs = []
+                for i, drop_fc in model.drop_layers.named_children():
+                    tag = f"condrop.{i}"
+                    pdf = drop_fc.get_unit_pdf()
+                    
+                    writer.add_histogram(tag,
+                                        pdf,
+                                        step, bins="auto")
 
-                n_units = np.arange(pdf.shape[0])
-                sort_pdf = np.sort(pdf)
-                
-                fig = plt.figure()
-                ax = fig.add_subplot(111)
-                ax.plot(n_units, sort_pdf)
+                    n_units = np.arange(pdf.shape[0])
+                    sort_pdf = np.sort(pdf)
+                    
+                    fig = plt.figure()
+                    ax = fig.add_subplot(111)
+                    ax.plot(n_units, sort_pdf)
 
-                # fig.legend(loc='upper left')
-                # plt.xlabel('Ordered Units')
-                # plt.ylabel('Drop pdf')
-                writer.add_figure(tag+f".{epoch}",
-                                  fig,
-                                  step)
+                    # fig.legend(loc='upper left')
+                    # plt.xlabel('Ordered Units')
+                    # plt.ylabel('Drop pdf')
+                    writer.add_figure(tag+f".{epoch}",
+                                    fig,
+                                    step)
 
-                # writer.add_histogram(tag + ".sorted",
-                #                      np.sort(pdf),
-                #                      step, bins="tensorflow")
-                
-        
-        #        #writer.add_histogram(tag + '/grad',
-        #        #                     value.grad.data.cpu(),
-        #        #                     step, bins="auto")
-                writer.flush()
-            step += 1
+                    # writer.add_histogram(tag + ".sorted",
+                    #                      np.sort(pdf),
+                    #                      step, bins="tensorflow")
+                    
+            
+            #        #writer.add_histogram(tag + '/grad',
+            #        #                     value.grad.data.cpu(),
+            #        #                     step, bins="auto")
+                    writer.flush()
+                step += 1
     
     if p_schedule is not None:
         print(f"Scheduler probability is {p_s}")    
@@ -1042,18 +1050,20 @@ def new_train(model,
 
 def validate(model,
              val_loader,
+             criterion,
              epoch=None,
-             writer=None):
+             writer=None,
+             device='cpu'):
     model.eval()
     val_loss = 0
     batch_loss = []
     correct = 0
     with torch.no_grad():
         for data, target in val_loader:
-            data, target = data.to(model.device), target.to(model.device)
+            data, target = data.to(device), target.to(device)
             #_, output = model(data)
             output = model(data)
-            loss = F.nll_loss(output, target)
+            loss = criterion(output, target)
             batch_loss.append(loss.item())
             val_loss += loss.item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -1072,7 +1082,7 @@ def validate(model,
     return val_loss, accuracy, batch_loss
 
 
-def test(model, test_loader):
+def test(model, test_loader, criterion, device='cpu'):
     model.eval()
     model_name = model.__class__.__name__
     test_loss = 0
@@ -1081,10 +1091,10 @@ def test(model, test_loader):
     misclassified_batch = []
     with torch.no_grad():
         for data, target in test_loader:
-            data, target = data.to(model.device), target.to(model.device)
+            data, target = data.to(device), target.to(device)
             #_, output = model(data)
             output = model(data)
-            loss = F.nll_loss(output, target)
+            loss = criterion(output, target)
             batch_loss.append(loss.item())
             test_loss += loss.item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability

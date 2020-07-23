@@ -1,25 +1,31 @@
 {
-    "model_name": "CNN2D",
-    "experiment_id": "_small_sample_condrop_mul_8_0.001_10runs",
+    "model_name": "vgg-11",
+    "experiment_id": "ft-all-vgg11_idrop_short_0.88_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
+    "fine_tune": true,
+    "ft_method": "dropout",
+    "criterion": "CE",
+    "requires_grad": true,
+    "grad_module": "features",
     "regularization": true,
     "importance": true,
     "aggregate": true,
+    "idrop":{
+        "method": "bucket",
+        "inv_trick": "exp-average",
+        "rk_history": "long",
+        "betta": 0.88,
+        "p_buckets": [0.1, 0.5, 0.9]
+    },
     "use_drop_schedule": {
-        "prob_scheduler": "Mul",
-        "p_drop": 0.5,
-        "peak_epoch": 8,
-        "f_osc": 0.0,
-        "a_osc": 0.0, 
-        "use_inv_drop": true,
-        "inv_strategy": "bernoulli",
-        "track_history": false
     },
     "mixout": false,
-    "runs": 10,
-    "n_steps": 25,
+    "enable_writer": false,
+    "compute_imp_stats": false,
+    "runs": 5,
+    "n_steps": 10,
     "batch_size": 64,
     "test_batch_size": 1000,
     "valid_size": 0.25,
@@ -31,9 +37,10 @@
         "optimizer": "SGD",
         "lr": 0.001,
         "momentum": 0.9,
+        "weight_decay": 0.0,
         "scheduling": false,
-        "wait": 10,
-        "factor": 0.5
+        "step_size": 2,
+        "gamma": 0.5
     },
     "use_cuda": true,
     "cuda_device": "cuda:0",
@@ -42,8 +49,5 @@
     "p_drop": 0.5,
     "attribution":
     {
-        "sigma_attr": 0.1,
-        "adapt_to_tensor": true,
-        "per_sample_noise": true
     }
 }

@@ -3,12 +3,14 @@ import sys
 import json
 import torch
 import numpy as np
+import torch.nn as nn
 import torch.optim as optim
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from utils.model_utils import train, new_train, test, validate, EarlyStopping, \
     LinearScheduler, MultiplicativeScheduler, \
     StepScheduler, ExponentialScheduler 
+from modules.vgg import *
 from utils.mnist import MNIST
 from configs.config import Config
 from modules.models import CNN2D, CNNFC
@@ -28,17 +30,27 @@ def run_training(model,
     """ # TODO add docstrings
     """
     NEW_VERSION = True
+    device = experiment_setup["device"]
     calc_stats = experiment_setup["compute_imp_stats"]
     regularization = experiment_setup["regularization"]
     optim_setup = experiment_setup["optimization"]
     print(f"Model {experiment_setup['model_name']} with "
           f"{optim_setup['optimizer']} optimizer and "
           f"{optim_setup['lr']} learning rate")
+
+    if experiment_setup["criterion"] == "NLL":
+        criterion = nn.NLLLoss()
+    elif experiment_setup["criterion"] == "CE":
+        criterion = nn.CrossEntropyLoss()
+    else:
+        raise NotImplementedError("Not a valid loss function")
+    print(f"criterion is {experiment_setup['criterion']}")
     
     if optim_setup["optimizer"] == "SGD":
         optimizer = optim.SGD(model.parameters(),
                               lr=optim_setup["lr"],
-                              momentum=optim_setup["momentum"])
+                              momentum=optim_setup["momentum"],
+                              weight_decay=optim_setup.get("weight_decay", 0.0))
     elif optim_setup["optimizer"] == "Adam":
         optimizer = optim.Adam(model.parameters(),
                                lr=optim_setup["lr"])
@@ -46,14 +58,14 @@ def run_training(model,
         raise NotImplementedError("Not a valid optimizer")
 
     use_optim_scheduler = optim_setup.get("scheduling", False)
+    lr_scheduler = None
     if use_optim_scheduler:
-        print("Adding ReduceLROnPlateu Scheduler")
+        print("Adding StepLR Scheduler")
         lr_scheduler = \
-            optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                 'min',
-                                                  factor=optim_setup["factor"],
-                                                  patience=optim_setup["wait"],
-                                                  verbose=True)
+            optim.lr_scheduler.StepLR(optimizer,
+                                      step_size=optim_setup["step_size"],
+                                      gamma=optim_setup["gamma"])
+                                    
 
     if experiment_setup["idrop"] != {}:
         map_rank_method = experiment_setup["idrop"].get("method", "bucket")
@@ -184,7 +196,11 @@ def run_training(model,
 
     top_percentile = dict.fromkeys(range(0, 64), 0)
     bottom_percentile = dict.fromkeys(range(0, 64), 0)
-        
+
+    # for p in model.features.parameters():
+    #     print(p)
+    #     break
+
     # training
     for epoch in range(1, experiment_setup["epochs"] + 1):
         print("Epoch: [{}/{}]".format(epoch, experiment_setup["epochs"]))
@@ -220,6 +236,7 @@ def run_training(model,
                                     train_loader,
                                     optimizer,
                                     epoch,
+                                    criterion,
                                     regularization=regularization,
                                     writer=writer,
                                     attributor=attributor,
@@ -243,9 +260,16 @@ def run_training(model,
                                     respect_attr=respect_attr,
                                     calc_stats=calc_stats,
                                     top_percentile=top_percentile,
-                                    bottom_percentile=bottom_percentile)
-            
-            
+                                    bottom_percentile=bottom_percentile,
+                                    device=device)
+
+        # for p in model.classifier.parameters():
+        #     print(p)
+        # import pdb; pdb.set_trace()
+        # for p in model.features.parameters():
+        #     print(p)
+        #     break
+
         loss_dict["train"].append(train_loss)
         acc_dict["train"].append(train_acc)
         p_drop_list.append(p_list)
@@ -263,17 +287,22 @@ def run_training(model,
         
         #######################################################################
 
-        #import pdb; pdb.set_trace()
+        # if epoch == 3:
+        #     print(model)
+        #     import pdb; pdb.set_trace()
         val_loss, val_acc, val_loss_list = validate(model,
                                                     val_loader,
+                                                    criterion,
                                                     epoch=epoch,
-                                                    writer=writer)
+                                                    writer=writer,
+                                                    device=device)
 
         loss_dict["val"].append(val_loss)
         acc_dict["val"].append(val_acc)
 
         if use_optim_scheduler:
-            lr_scheduler.step(val_loss)
+            lr_scheduler.step()
+            #print(lr_scheduler.get_lr())
 
         num_units = 5
         if writer is not None:
@@ -298,7 +327,7 @@ def run_training(model,
             
         if epoch % test_freq == 0 or epoch == 1:
             test_loss, test_acc, _, test_loss_list =\
-                test(model, test_loader)
+                test(model, test_loader, criterion, device=device)
             loss_dict["test"].append(test_loss)
             acc_dict["test"].append(test_acc)
         
@@ -314,53 +343,62 @@ def run_training(model,
     if writer is not None:
         writer.close()
 
-    cnn_setup = model_setup["CNN2D"]
-    fc_setup = model_setup["FC"]
+    cnn_setup = model_setup.get("CNN2D", {})
+    fc_setup = model_setup.get("FC", {})
 
-    if NEW_VERSION is True:
-        saved_model = CNNFC(input_shape=data_setup["input_shape"],
-                        kernels=cnn_setup["kernels"],
-                        kernel_size=cnn_setup["kernel_size"],
-                        stride=cnn_setup["stride"],
-                        padding=cnn_setup["padding"],
-                        maxpool=cnn_setup["maxpool"],
-                        pool_size=cnn_setup["pool_size"],
-                        conv_drop=cnn_setup["conv_drop"],
-                        p_conv_drop=cnn_setup["p_conv_drop"],
-                        conv_batch_norm=cnn_setup["conv_batch_norm"],
-                        regularization=experiment_setup["regularization"],
-                        activation=fc_setup["activation"],
-                        fc_layers=fc_setup["fc_layers"],
-                        add_dropout=fc_setup["fc_drop"],
-                        p_drop=fc_setup["p_drop"],
-                        idrop_method=map_rank_method,
-                        inv_trick=inv_trick,
-                        betta=betta,
-                        rk_history=rk_history,
-                        p_buckets=p_buckets,
-                        pytorch_dropout=experiment_setup["plain_drop"],
-                        device=model.device).to(model.device)
+    if experiment_setup["fine_tune"]:
+        saved_model = vgg11(pretrained=False,
+                            requires_grad=experiment_setup["requires_grad"],
+                            grad_module=experiment_setup["grad_module"],
+                            new_arch=model_setup)
     else:
-        saved_model = CNN2D(input_shape=data_setup["input_shape"],
-                        kernels=cnn_setup["kernels"],
-                        kernel_size=cnn_setup["kernel_size"],
-                        stride=cnn_setup["stride"],
-                        padding=cnn_setup["padding"],
-                        maxpool=cnn_setup["maxpool"],
-                        pool_size=cnn_setup["pool_size"],
-                        conv_drop=cnn_setup["conv_drop"],
-                        p_conv_drop=cnn_setup["p_conv_drop"],
-                        conv_batch_norm=cnn_setup["conv_batch_norm"],
-                        regularization=experiment_setup["regularization"],
-                        activation=fc_setup["activation"],
-                        fc_layers=fc_setup["fc_layers"],
-                        add_dropout=fc_setup["fc_drop"],
-                        p_drop=fc_setup["p_drop"],
-                        device=model.device).to(model.device)
-        
+        if NEW_VERSION is True:
+            saved_model = CNNFC(input_shape=data_setup["input_shape"],
+                            kernels=cnn_setup["kernels"],
+                            kernel_size=cnn_setup["kernel_size"],
+                            stride=cnn_setup["stride"],
+                            padding=cnn_setup["padding"],
+                            maxpool=cnn_setup["maxpool"],
+                            pool_size=cnn_setup["pool_size"],
+                            conv_drop=cnn_setup["conv_drop"],
+                            p_conv_drop=cnn_setup["p_conv_drop"],
+                            conv_batch_norm=cnn_setup["conv_batch_norm"],
+                            regularization=experiment_setup["regularization"],
+                            activation=fc_setup["activation"],
+                            fc_layers=fc_setup["fc_layers"],
+                            add_dropout=fc_setup["fc_drop"],
+                            p_drop=fc_setup["p_drop"],
+                            idrop_method=map_rank_method,
+                            inv_trick=inv_trick,
+                            betta=betta,
+                            rk_history=rk_history,
+                            p_buckets=p_buckets,
+                            pytorch_dropout=experiment_setup["plain_drop"],
+                            device=model.device).to(model.device)
+        else:
+            saved_model = CNN2D(input_shape=data_setup["input_shape"],
+                            kernels=cnn_setup["kernels"],
+                            kernel_size=cnn_setup["kernel_size"],
+                            stride=cnn_setup["stride"],
+                            padding=cnn_setup["padding"],
+                            maxpool=cnn_setup["maxpool"],
+                            pool_size=cnn_setup["pool_size"],
+                            conv_drop=cnn_setup["conv_drop"],
+                            p_conv_drop=cnn_setup["p_conv_drop"],
+                            conv_batch_norm=cnn_setup["conv_batch_norm"],
+                            regularization=experiment_setup["regularization"],
+                            activation=fc_setup["activation"],
+                            fc_layers=fc_setup["fc_layers"],
+                            add_dropout=fc_setup["fc_drop"],
+                            p_drop=fc_setup["p_drop"],
+                            device=model.device).to(model.device)
+            
     saved_model.load_state_dict(torch.load(ckpt_path + ".pt", map_location='cpu'))
-    saved_model = saved_model.to(model.device)
-    test_loss, test_acc, _, _ = test(saved_model, test_loader)
+    saved_model = saved_model.to(device)
+    test_loss, test_acc, _, _ = test(saved_model,
+                                     test_loader,
+                                     criterion,
+                                     device=device)
     
     train_summary = {"loss": loss_dict,
                      "acc": acc_dict,

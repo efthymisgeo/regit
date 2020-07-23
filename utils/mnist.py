@@ -123,11 +123,13 @@ class CIFAR10:
         self.test_batch_size = exp_setup["test_batch_size"]
         self.val_size = exp_setup["valid_size"]
         self.kwargs = exp_setup["kwargs"]
-
+        self.norm_mean = data_setup["normalization"][0]
+        self.norm_std = data_setup["normalization"][1]
+        
         self.transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                 (0.2470, 0.2435, 0.2616)),
+            transforms.Normalize(mean=self.norm_mean,
+                                 std=self.norm_std),
             ])
         
         
@@ -196,7 +198,7 @@ class CIFAR10:
                                                    **self.kwargs)
 
         return train_loader, valid_loader
-
+    
 
 class MySequentialSampler(Sampler):
     """Samples elements sequentially, always in the same order.

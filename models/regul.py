@@ -3,12 +3,15 @@ import sys
 import csv
 import json
 import torch
-import pandas as pd
 import numpy as np
+import pandas as pd
 import seaborn as sns
+import torch.nn as nn
 import torch.optim as optim
+import torchvision.models as torch_models
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
+from modules.vgg import *
 from modules.models import CNN2D, CNNFC
 from utils.model_utils import train, test, validate, EarlyStopping
 from utils.mnist import MNIST, CIFAR10
@@ -44,6 +47,35 @@ def check_directory_and_create(dir_path, exists_warning=False):
         os.mkdir(dir_path)
     return os.path.abspath(dir_path)
 
+def set_parameter_requires_grad(model, requires_grad=False):
+    """Sets requires_grad for all the vgg parameters in a model.
+    Args:
+        model(nn model): model to alter.
+        requires_grad(bool): whether the model
+            requires grad.
+    """
+    for param in model.features.parameters():
+        param.requires_grad = requires_grad
+
+def make_vgg_clf(old_params, clf_params, reinit=True):
+    """construct a vgg classifier
+    Args:
+        old_params (torch.nn.Sequential): the module which consists of the
+            pre-trained model parameters
+        clf_params (dict): a dict which has all the necessary classifier info
+        reinit (bool): handles reinitializing opiton. can be false only when
+            resuming training in the same dataset (ImageNet)
+    """
+    fc_list = clf_params["fc_layers"]
+    p_drop = clf_params["p_drop"] 
+    fc = []
+    # append linear layers
+    for i_fc in range(0, len(fc_list)-1):
+        fc.append(nn.Linear(fc_list[i_fc], fc_list[i_fc+1]))
+        fc.append(nn.ReLU())
+        fc.append(nn.Dropout(p_drop))
+    fc.append(nn.Linear(fc_list[-2], fc_list[-1]))
+    return nn.Sequential(*fc)
 
 if __name__ == '__main__':
     exp_config = load_experiment_options()
@@ -108,9 +140,6 @@ if __name__ == '__main__':
     raw_acc_dict = []
     acc_list = []
 
-    cnn_setup = model_setup["CNN2D"]
-    fc_setup = model_setup["FC"]
-
     save_path = os.path.join(exp_setup["experiment_folder"],
                              data_setup["name"],
                              exp_setup["experiment_id"])
@@ -137,50 +166,89 @@ if __name__ == '__main__':
 
         
         print("================== RUN {} ==================".format(i))
-        print("--------- Training CNN-FC is about to take off ---------")
         
-        # define model
-        model = CNNFC(input_shape=input_shape,
-                      kernels=cnn_setup["kernels"],
-                      kernel_size=cnn_setup["kernel_size"],
-                      stride=cnn_setup["stride"],
-                      padding=cnn_setup["padding"],
-                      maxpool=cnn_setup["maxpool"],
-                      pool_size=cnn_setup["pool_size"],
-                      conv_drop=cnn_setup["conv_drop"],
-                      p_conv_drop=cnn_setup["p_conv_drop"],
-                      conv_batch_norm=cnn_setup["conv_batch_norm"],
-                      regularization=regularization,
-                      activation=fc_setup["activation"],
-                      fc_layers=fc_setup["fc_layers"],
-                      add_dropout=fc_setup["fc_drop"],
-                      p_drop=fc_setup["p_drop"],
-                      idrop_method=map_rank_method,
-                      p_buckets=p_buckets,
-                      inv_trick=inv_trick,
-                      betta=betta,
-                      rk_history=rk_history,
-                      pytorch_dropout=exp_setup["plain_drop"],
-                      device=device).to(device)
+        if not exp_setup["fine_tune"]:
+            print("--------- Training CNN-FC is about to take off ---------")
+            cnn_setup = model_setup["CNN2D"]
+            fc_setup = model_setup["FC"]
+    
+            # define model
+            model = CNNFC(input_shape=input_shape,
+                        kernels=cnn_setup["kernels"],
+                        kernel_size=cnn_setup["kernel_size"],
+                        stride=cnn_setup["stride"],
+                        padding=cnn_setup["padding"],
+                        maxpool=cnn_setup["maxpool"],
+                        pool_size=cnn_setup["pool_size"],
+                        conv_drop=cnn_setup["conv_drop"],
+                        p_conv_drop=cnn_setup["p_conv_drop"],
+                        conv_batch_norm=cnn_setup["conv_batch_norm"],
+                        regularization=regularization,
+                        activation=fc_setup["activation"],
+                        fc_layers=fc_setup["fc_layers"],
+                        add_dropout=fc_setup["fc_drop"],
+                        p_drop=fc_setup["p_drop"],
+                        idrop_method=map_rank_method,
+                        p_buckets=p_buckets,
+                        inv_trick=inv_trick,
+                        betta=betta,
+                        rk_history=rk_history,
+                        pytorch_dropout=exp_setup["plain_drop"],
+                        device=device).to(device)
 
-        if importance:
-            layer_list = []
-            for i_fc in range(len(fc_setup["fc_layers"])-1):
-                layer_list.append(model.fc[i_fc])
-            attributor = Attributor(model, layer_list)
+            if importance:
+                layer_list = []
+                for i_fc in range(len(fc_setup["fc_layers"])-1):
+                    layer_list.append(model.fc[i_fc])
+                attributor = Attributor(model, layer_list)
+            else:
+                attributor = None
+            
+            #for tag, value in model.named_parameters():
+            for tag, value in model.named_modules():
+                print(tag)
         else:
-            attributor = None
-        
-        #for tag, value in model.named_parameters():
-        for tag, value in model.named_modules():
-            print(tag)
+            print("--------------- fine tuning VGG -------------------")
+            model = vgg11(pretrained=True,
+                          requires_grad=exp_setup["requires_grad"],
+                          grad_module=exp_setup["grad_module"],
+                          new_arch=model_setup)
 
+            if importance:
+                layer_list = []
+                for m in model.classifier.children():
+                    print(m)
+                    if isinstance(m, nn.Linear):
+                        layer_list.append(m)
+                attributor = Attributor(model, layer_list)
+            else:
+                attributor = None    
+            #import pdb; pdb.set_trace()
+            # #model = torch_models.vgg11(pretrained=True)
+            # set_parameter_requires_grad(model,
+            #                             requires_grad=exp_setup["requires_grad"])
+            # get rid of last layers
+            # ft_method = exp_setup["ft_method"]
+            # if 'vgg' in exp_setup['model_name']:
+            #     if ft_method == "dropout":
+            #         new_clf = make_vgg_clf(model.classifier,
+            #                                model_setup["FC"],
+            #                                reinit=True)
+            #     elif ft_method == "i-drop":
+            #         pass
+            #     elif ft_method == "plain":
+            #         pass
+            #     else:
+            #         pass
+            #     model.classifier = new_clf
+            
+
+            model = model.to(device)
         # for tag, value in model.drop_layers.named_children():
         #     print(tag)
         #     print(value)
-            
+
         print(model)
-                         
         # training
         run_id = os.path.join(checkpoint_path, experiment_id + str(i)) 
         train_summary = run_training(model,

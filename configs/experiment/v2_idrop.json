@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "med_exp-avg_0.9993_long_bucket_0.005_10runs",
+    "experiment_id": "small_3bucket_30_cyclic_0.88_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -11,14 +11,15 @@
         "method": "bucket",
         "inv_trick": "exp-average",
         "rk_history": "long",
-        "betta": 0.9993,
-        "p_buckets": [0.1, 0.9]
+        "betta": 0.88,
+        "p_buckets": [0.1, 0.5, 0.9]
     },
     "use_drop_schedule": {
     },
     "mixout": false,
     "enable_writer": false,
-    "runs": 10,
+    "compute_imp_stats": false,
+    "runs": 5,
     "n_steps": 25,
     "batch_size": 64,
     "test_batch_size": 1000,
@@ -42,7 +43,5 @@
     "p_drop": 0.5,
     "attribution":
     {
-        "sigma_attr": 0.005,
-        "adapt_to_tensor": true
     }
 }

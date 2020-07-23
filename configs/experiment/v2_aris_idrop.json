@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "bucket_0.1_0.9_25runs",
+    "experiment_id": "small_128_exp-avg_0.9_delta_0.1_overall_mean_long_noise_mean_0.5_cyclic_total_conductance",
     "imp_sampling": 1,
     "data_folder": "/work2/pa18/geopar/efthygeo/data",
     "checkpoint_folder": "/work2/pa18/geopar/efthygeo/checkpoints",
@@ -10,7 +10,9 @@
     "aggregate": true,
     "idrop":{
         "method": "bucket",
-        "inv_trick": "dropout",
+        "inv_trick": "exp-average",
+        "rk_history": "long",
+        "betta": 0.9999,
         "p_buckets": [0.1, 0.9]
     },
     "use_drop_schedule": {
@@ -22,6 +24,8 @@
         "track_history": false
     },
     "mixout": false,
+    "enable_writer": false,
+    "compute_imp_stats":false,
     "runs": 25,
     "n_steps": 25,
     "batch_size": 64,

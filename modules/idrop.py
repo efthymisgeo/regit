@@ -32,6 +32,8 @@ class ConDropout(nn.Module):
         n_buckets(int): the number of buckets that the units will be separated
             degault value is 2. Will be removed in the future. For debugging
             reasons
+        bucket_size (list): a list which contains the size of the corresponding
+            buckets. Functionality used for non symmetric setup.
         cont_pdf(str): Default is None. Otherwise one of the following choices
             are available "sigma-norm"
         correction_factor(float): the factor which is used for mean correction
@@ -50,6 +52,7 @@ class ConDropout(nn.Module):
     def __init__(self,
                  p_buckets=[0.25, 0.75],
                  n_buckets=2,
+                 bucket_size=[0.5, 0.5],
                  cont_pdf=None,
                  p_mean=0.5,
                  correction_factor=0.01,
@@ -63,6 +66,7 @@ class ConDropout(nn.Module):
         self.cont_pdf = cont_pdf
         self.rk_history = rk_history
         self.scheduling = scheduling
+        self.bucket_size = bucket_size
         if self.cont_pdf not in SUPPORTED_DISTRIBUTIONS:
                 raise NotImplementedError("Not a supported pdf")
         elif self.cont_pdf == "bucket":
@@ -76,6 +80,7 @@ class ConDropout(nn.Module):
             self.p_mean = np.mean(self.p_buckets)   
             self.n_buckets = n_buckets
             self.split_intervals = self._get_bucket_intervals()
+            #import pdb; pdb.set_trace()
 
             for i, p in enumerate(self.p_buckets):
                 if 1.0 < p or p < 0.0:
@@ -95,7 +100,10 @@ class ConDropout(nn.Module):
             #self.mask_prob = "induced"
     
         self._init_message()
-        self.p_init = 1.0  # [1.0, 0.5, .01] initial keep probability
+        self.p_init = 0.5  # [1.0, 0.5, .01] initial keep probability
+    
+    def extra_repr(self) -> str:
+        return f'p_buckets={self.p_buckets}, inv_trick={self.inv_trick}'
 
     def prob_step(self, p_drop, update="mean"):
         """Function which changes p_drop
@@ -123,9 +131,17 @@ class ConDropout(nn.Module):
         The intervals are meant to separate a uniform distribution U[0,1]
         """
         intervals = []  # lower bound
-        for i in range(self.n_buckets):
-            intervals.append(i/self.n_buckets)
-        intervals.append(1.0)
+        if self.bucket_size == [0.5, 0.5]:
+            for i in range(self.n_buckets):
+                intervals.append(i/self.n_buckets)
+            intervals.append(1.0)
+        else:
+            cum_buck = 0.0
+            intervals.append(0.0)
+            for len_buck in self.bucket_size[:-1]:
+                cum_buck += len_buck
+                intervals.append(cum_buck)
+            intervals.append(1.0)
         return intervals
     
     def _init_message(self):
@@ -268,7 +284,7 @@ class ConDropout(nn.Module):
         # TODO: in the mask-per-label case implement
         # possibly the mean case is much better
         if self.inv_trick == "exp-average":
-            if self.prob_avg is None or self.p_init == 1.0:
+            if self.prob_avg is None or self.p_init == 0.5:
                 if self.prob_avg is not None:
                     print(f"mean prob is {torch.mean(self.prob_avg)}")
                 #self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
