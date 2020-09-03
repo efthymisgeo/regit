@@ -3,5 +3,6 @@
     "log_interval": 10,
     "name": "CIFAR10",
     "input_shape": [3, 32, 32],
-    "normalization": [[0.4914, 0.4822, 0.4465], [0.2470, 0.2435, 0.2616]]
+    "normalization": [[0.4914, 0.4822, 0.4465], [0.2470, 0.2435, 0.2616]],
+    "augmentation": false
 }   

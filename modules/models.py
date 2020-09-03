@@ -971,7 +971,7 @@ class CNNFC(nn.Module):
 
         #idrop layers
         self.add_dropout = add_dropout
-        self.pytorch_drop = False
+        self.pytorch_drop = pytorch_dropout
         self.method = idrop_method
         self.p_mean = p_drop
         self.betta = betta
@@ -1076,7 +1076,7 @@ class CNNFC(nn.Module):
                                             betta=self.betta,
                                             rk_history=self.rk_history))
             else:
-                drop_list.append(nn.Dropout(p=self.p_drop[0]))
+                drop_list.append(nn.Dropout(p=self.p_mean))
         return nn.ModuleList(drop_list)
 
     def forward(self, x, rankings=None):

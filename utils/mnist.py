@@ -125,13 +125,25 @@ class CIFAR10:
         self.kwargs = exp_setup["kwargs"]
         self.norm_mean = data_setup["normalization"][0]
         self.norm_std = data_setup["normalization"][1]
+        self.augmentation = data_setup.get("augmentation", False)
         
-        self.transform = transforms.Compose([
+        
+        self.val_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=self.norm_mean,
                                  std=self.norm_std),
             ])
         
+        if self.augmentation:
+            self.train_transform = transforms.Compose([
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomCrop(32, 4),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=self.norm_mean,
+                                        std=self.norm_std),
+                    ])
+        else:
+            self.train_transform = self.val_transform
         
         self.data_dir = \
             os.path.join(
@@ -147,7 +159,7 @@ class CIFAR10:
         train_loader = \
             torch.utils.data.DataLoader(
                 datasets.CIFAR10(self.data_dir, train=True, download=True,
-                                 transform=self.transform), 
+                                 transform=self.train_transform), 
                 batch_size=self.batch_size,
                 **self.kwargs)
         return train_loader
@@ -156,7 +168,7 @@ class CIFAR10:
         return torch.utils.data.DataLoader(
                     datasets.CIFAR10(self.data_dir,
                                      train=False,
-                                     transform=self.transform),
+                                     transform=self.val_transform),
                     batch_size=self.test_batch_size, shuffle=False,
                     **self.kwargs) 
 
@@ -169,12 +181,12 @@ class CIFAR10:
         train_dataset = datasets.CIFAR10(root=self.data_dir,
                                          train=True,
                                          download=True,
-                                         transform=self.transform)
+                                         transform=self.train_transform)
 
         valid_dataset = datasets.CIFAR10(root=self.data_dir,
                                          train=True,
                                          download=True,
-                                         transform=self.transform)
+                                         transform=self.val_transform)
 
         # random split
         # TODO add function

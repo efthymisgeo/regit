@@ -90,7 +90,7 @@ class VGG(nn.Module):
                                          betta=params["betta"],
                                          rk_history=params["rk_history"]))
                 elif params["algorithm"] == "plain":
-                    break
+                    pass
                 else:
                     raise NotImplementedError("Not a valid regularization" 
                         "algorithm. You should check your model conf file.")

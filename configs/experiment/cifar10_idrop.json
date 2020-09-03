@@ -1,26 +1,23 @@
 {
-    "model_name": "vgg-11",
-    "experiment_id": "ft-all-vgg11_drop_0.7_aug_lr-sch_0.01_10_0.1_5runs",
+    "model_name": "CNNFC",
+    "experiment_id": "_CIFAR10_deep1_idrop-0.999999_lr-0.001_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
-    "fine_tune": true,
+    "fine_tune": false,
     "ft_method": "dropout",
     "criterion": "CE",
-    "requires_grad": true,
-    "grad_module": "features",
     "regularization": true,
-    "importance": false,
+    "importance": true,
     "aggregate": true,
     "idrop":{
         "method": "bucket",
         "inv_trick": "exp-average",
-        "rk_history": "long",
-        "betta": 0.88,
-        "p_buckets": [0.1, 0.5, 0.9]
+        "rk_history": "short",
+        "betta": 0.999999,
+        "p_buckets": [0.9, 0.1]
     },
-    "use_drop_schedule": {
-    },
+    "use_drop_schedule": {},
     "mixout": false,
     "enable_writer": false,
     "compute_imp_stats": false,
@@ -29,25 +26,23 @@
     "batch_size": 64,
     "test_batch_size": 1000,
     "valid_size": 0.25,
-    "patience": 10,
+    "patience": 6,
     "epochs": 500,
     "weught_decay": 0.0,
     "optimization":
     {
         "optimizer": "SGD",
-        "lr": 0.01,
+        "lr": 0.001,
         "momentum": 0.9,
         "weight_decay": 0.0,
-        "scheduling": true,
+        "scheduling": false,
         "step_size": 10,
         "gamma": 0.1
     },
     "use_cuda": true,
     "cuda_device": "cuda:0",
     "save_model": true,
-    "plain_drop": true,
+    "plain_drop": false,
     "p_drop": 0.5,
-    "attribution":
-    {
-    }
+    "attribution": {}
 }
