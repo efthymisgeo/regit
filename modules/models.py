@@ -1098,4 +1098,5 @@ class CNNFC(nn.Module):
             out = F.relu(out)
 
         out = self.fc[-1](out)
-        return F.log_softmax(out, dim=1)
+        # return F.log_softmax(out, dim=1)
+        return out
