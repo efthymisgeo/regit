@@ -39,7 +39,7 @@ class ConDropout(nn.Module):
         correction_factor(float): the factor which is used for mean correction
         tollerance(float): when mean approx is acceptable
         inv_trick(string): which inversion trick to use
-        betta (float): parameter which handles the change of the mean 
+        beta (float): parameter which handles the change of the mean 
             probability of each neuron
         scheduling (str): 
         rk_history (str): short/long short is used for getting a short memory
@@ -48,6 +48,7 @@ class ConDropout(nn.Module):
         mask_prob (str): the mask probability which will be used as the current
             batch mask. "average": for the prob_avg and "induced" for the
             induced probability based on the current units importance
+        prior (float): uniform prior value
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
@@ -58,10 +59,11 @@ class ConDropout(nn.Module):
                  correction_factor=0.01,
                  tollerance=0.01,
                  inv_trick="dropout",
-                 betta=0.999,
+                 beta=0.999,
                  scheduling="mean",
                  rk_history="short",
-                 mask_prob="average"):
+                 mask_prob="average",
+                 prior=0.5):
         super(ConDropout, self).__init__()
         self.cont_pdf = cont_pdf
         self.rk_history = rk_history
@@ -95,15 +97,27 @@ class ConDropout(nn.Module):
         
         self.inv_trick = inv_trick
         if self.inv_trick == "exp-average":
-            self.betta = betta
+            self.beta = beta
             self.prob_avg = None
             #self.mask_prob = "induced"
     
         self._init_message()
-        self.p_init = 0.5  # [1.0, 0.5, .01] initial keep probability
+        # hack to work. should be changed in future
+        self.prior = prior
+        self.p_init = prior  # [1.0, 0.5, .01] initial prior keep probability
     
     def extra_repr(self) -> str:
         return f'p_buckets={self.p_buckets}, inv_trick={self.inv_trick}'
+    
+    def reset_avg_prob(self, prob_avg):
+        """Sets average probability to a given value
+        """
+        self.prob_avg = prob_avg
+    
+    def reset_beta(self, beta):
+        """Sets beta to a given value
+        """
+        self.beta = beta
 
     def prob_step(self, p_drop, update="mean"):
         """Function which changes p_drop
@@ -115,7 +129,7 @@ class ConDropout(nn.Module):
         if update == "mean":
             self.p_mean = p_drop
         elif update == "bucket":
-            self.p_buckets = [self.p_mean - p_drop, self.p_mean + p_drop]
+            self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
         elif update == "flip":
             self.p_buckets = [self.p_low - p_drop, self.p_high + p_drop]
         elif update == "re-init":
@@ -280,11 +294,11 @@ class ConDropout(nn.Module):
             # print(f"Probabilistic Masks are {prob_masks}")
             # import pdb; pdb.set_trace()
         
-
+        # import pdb; pdb.set_trace()
         # TODO: in the mask-per-label case implement
         # possibly the mean case is much better
         if self.inv_trick == "exp-average":
-            if self.prob_avg is None or self.p_init == 0.5:
+            if self.prob_avg is None or self.p_init == self.prior:
                 if self.prob_avg is not None:
                     print(f"mean prob is {torch.mean(self.prob_avg)}")
                 #self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
@@ -292,7 +306,7 @@ class ConDropout(nn.Module):
                 self.p_init = .3  # change it to get in this branch only once
             else:
                 self.prob_avg = \
-                    self.betta * self.prob_avg + (1 - self.betta) * torch.mean(prob_masks, dim=0)
+                    self.beta * self.prob_avg + (1 - self.beta) * torch.mean(prob_masks, dim=0)
             
             if self.rk_history == "long":
                 #import pdb; pdb.set_trace()

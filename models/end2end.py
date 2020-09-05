@@ -71,14 +71,14 @@ def run_training(model,
         map_rank_method = experiment_setup["idrop"].get("method", "bucket")
         p_buckets = experiment_setup["idrop"].get("p_buckets", [0.2, 0.8])
         inv_trick = experiment_setup["idrop"].get("inv_trick", "dropout")
-        betta = experiment_setup["idrop"].get("betta", 0.9999)
+        beta = experiment_setup["idrop"].get("beta", 0.9999)
         schedule_strategy = experiment_setup["idrop"].get("schedule", None)
         rk_history = experiment_setup["idrop"].get("rk_history", "short")
     else:
         map_rank_method = "bucket"
         p_buckets = [0.2, 0.8]
         inv_trick = "dropout"
-        betta = 0.9999
+        beta = 0.9999
         rk_history = "short"
         schedule_strategy = None
 
@@ -261,6 +261,9 @@ def run_training(model,
                                     calc_stats=calc_stats,
                                     top_percentile=top_percentile,
                                     bottom_percentile=bottom_percentile,
+                                    reset_prior_epoch=experiment_setup["reset_prior_epoch"],
+                                    prior=experiment_setup["prior"],
+                                    reseted_beta=experiment_setup["reseted_beta"],
                                     device=device)
 
         # for p in model.classifier.parameters():
@@ -370,10 +373,11 @@ def run_training(model,
                             p_drop=fc_setup["p_drop"],
                             idrop_method=map_rank_method,
                             inv_trick=inv_trick,
-                            betta=betta,
+                            beta=beta,
                             rk_history=rk_history,
                             p_buckets=p_buckets,
                             pytorch_dropout=experiment_setup["plain_drop"],
+                            prior=experiment_setup["prior"],
                             device=model.device).to(model.device)
         else:
             saved_model = CNN2D(input_shape=data_setup["input_shape"],

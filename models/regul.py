@@ -131,13 +131,13 @@ if __name__ == '__main__':
         map_rank_method = exp_setup["idrop"].get("method", "bucket")
         p_buckets = exp_setup["idrop"].get("p_buckets", [0.2, 0.8])
         inv_trick = exp_setup["idrop"].get("inv_trick", "dropout")
-        betta = exp_setup["idrop"].get("betta", 0.9999)
+        beta = exp_setup["idrop"].get("beta", 0.9999)
         rk_history = exp_setup["idrop"].get("rk_history", "short")
     else:
         map_rank_method = False
         p_buckets = [0.9, 0.1]
         inv_trick = "dropout"
-        betta = 1.0
+        beta = 1.0
         rk_history = "short"
     print_config(exp_setup)
 
@@ -197,9 +197,10 @@ if __name__ == '__main__':
                         idrop_method=map_rank_method,
                         p_buckets=p_buckets,
                         inv_trick=inv_trick,
-                        betta=betta,
+                        beta=beta,
                         rk_history=rk_history,
                         pytorch_dropout=exp_setup["plain_drop"],
+                        prior=exp_setup["prior"],
                         device=device).to(device)
 
             if importance:

@@ -663,6 +663,9 @@ def new_train(model,
               top_percentile={},
               bottom_percentile={},
               unit_tracker={},
+              reset_prior_epoch=-1,
+              prior=0.5,
+              reseted_beta=-1,
               device="cpu"):
     """
     Function that trains the given model for an epoch and returns the 
@@ -712,6 +715,10 @@ def new_train(model,
             when it std is high.
         calc_stats (bool): when true the attributor also returns per batch
             statistics
+        reset_prior_epoch (str): epoch in which the prior will be reseted
+        prior (float): the value of the prior which will be used when reseted
+        reseted_beta (float): the value of beta which will be reseted.
+            (-1): not used otherwise
         device (str): the device in which the models are stored
     Returns:
         train_loss (float): list of train losses per epoch
@@ -774,6 +781,14 @@ def new_train(model,
 
     # model.set_dropout(p_drop, mix_rates)
     # print(f"Model is trained with p_drop {model.p_drop}")
+    
+    # reset prior and beta in a given epoch
+    if epoch == reset_prior_epoch:
+        print(f"Reseted prior probabilities to {prior}")
+        model.set_prior(prior)
+        if reseted_beta != -1:
+            print(f"Reseted plasticity factor to {reseted_beta}")
+            model.set_beta(reseted_beta)
     
     # if RESET_COUNTER:
     #     model.reset_drop_cnt()

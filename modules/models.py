@@ -922,6 +922,13 @@ class CNNFC(nn.Module):
         fc_layers (list): list with number of units per layer
         add_dropout (bool): add or ont dropout
         p_drop (float): drop probability for fc layers
+        idrop_method (str):
+        inv_trick (str):
+        beta (float):
+        rk_history (str):
+        p_buckets (list):
+        pytorch_dropout (bool):
+        prior (float):
         device (str): cpu or gpu usage
     """
 
@@ -937,10 +944,11 @@ class CNNFC(nn.Module):
                  p_drop=0.5,
                  idrop_method="bucket",
                  inv_trick="dropout",
-                 betta=0.9999,
+                 beta=0.9999,
                  rk_history="short",
                  p_buckets=[0.25, 0.75],
                  pytorch_dropout=False,
+                 prior=0.5,
                  device="cpu"):
         super(CNNFC, self).__init__()
         
@@ -974,11 +982,12 @@ class CNNFC(nn.Module):
         self.pytorch_drop = pytorch_dropout
         self.method = idrop_method
         self.p_mean = p_drop
-        self.betta = betta
+        self.beta = beta
         self.rk_history = rk_history
         self.p_buckets = p_buckets
         self.n_buckets = len(p_buckets)
         self.inv_trick = inv_trick
+        self.prior = prior 
 
         # get dropout layers
         self.drop_layers = self._make_drop()
@@ -991,7 +1000,21 @@ class CNNFC(nn.Module):
         """
         for fc_drop in self.drop_layers:
             fc_drop.prob_step(p_drop, update=update)
-
+    
+    def set_beta(self, beta):
+        """Helper function to access internal 'reset_beta' function of the
+        custom dropout layers
+        """
+        for fc_drop in self.drop_layers:
+            fc_drop.reset_beta(beta)
+    
+    def set_prior(self, prior):
+        """Helper function to access internal 'reset_prior' function of the
+        custom dropout layers
+        """
+        for fc_drop in self.drop_layers:
+            fc_drop.reset_avg_prob(prior)
+            
     def _get_activ(self):
         """Returns activation function 
         """
@@ -1073,8 +1096,9 @@ class CNNFC(nn.Module):
                                             n_buckets=self.n_buckets,
                                             p_mean=self.p_mean,
                                             inv_trick=self.inv_trick,
-                                            betta=self.betta,
-                                            rk_history=self.rk_history))
+                                            beta=self.beta,
+                                            rk_history=self.rk_history,
+                                            prior=self.prior))
             else:
                 drop_list.append(nn.Dropout(p=self.p_mean))
         return nn.ModuleList(drop_list)
@@ -1090,11 +1114,14 @@ class CNNFC(nn.Module):
         # import pdb; pdb.set_trace()
         # apply regularization
         for i in range(self.n_fc_layers - 1):
+            # affine transform
             out = self.fc[i](out)
+            # dropout layer
             if rankings is None:
                 out = self.drop_layers[i](out)
             else:
                 out = self.drop_layers[i](out, rankings[i])
+            # non-linearity
             out = F.relu(out)
 
         out = self.fc[-1](out)
