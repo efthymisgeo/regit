@@ -77,8 +77,12 @@ class ConDropout(nn.Module):
             else:
                 self.p_buckets = [p_buckets]
             if len(self.p_buckets) == 2:
-                self.p_low = self.p_buckets[0]
-                self.p_high = self.p_buckets[1]
+                self.p_high = self.p_buckets[0]
+                self.p_low = self.p_buckets[1]
+                # this part calculates mul factors for each bucket
+                # in case of scheduling
+                self.f_low = self.p_low / np.mean(self.p_buckets)
+                self.f_high = self.p_high / np.mean(self.p_buckets)
             self.p_mean = np.mean(self.p_buckets)   
             self.n_buckets = n_buckets
             self.split_intervals = self._get_bucket_intervals()
@@ -99,6 +103,7 @@ class ConDropout(nn.Module):
         if self.inv_trick == "exp-average":
             self.beta = beta
             self.prob_avg = None
+            self.ongoing_scheduling = False
             #self.mask_prob = "induced"
     
         self._init_message()
@@ -131,9 +136,20 @@ class ConDropout(nn.Module):
         elif update == "bucket":
             self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
         elif update == "flip":
-            self.p_buckets = [self.p_low - p_drop, self.p_high + p_drop]
+            self.p_buckets = [self.p_high - p_drop, self.p_low + p_drop]
         elif update == "re-init":
             self.p_init = p_drop
+        elif update == "from-zero":
+            self.ongoing_scheduling = True
+            # this part handles scheduling mean from zero
+            self.p_buckets = [self.f_high * p_drop, self.f_low * p_drop]
+            self.p_init = 1 - p_drop # refers to keep probability
+            if self.p_buckets[0] == self.p_high:
+                self.ongoing_scheduling = False
+                if self.p_init == self.prior:
+                    self.prior += 0.0001
+                    print(f"manually changing prior from {self.p_init} to"
+                          f" {self.prior}. COMMENT FOR DEBUGGING PUPROSES")
         else:
             raise NotImplementedError("Not a valid probability update")
        
@@ -298,13 +314,14 @@ class ConDropout(nn.Module):
         # TODO: in the mask-per-label case implement
         # possibly the mean case is much better
         if self.inv_trick == "exp-average":
-            if self.prob_avg is None or self.p_init == self.prior:
+            if (self.prob_avg is None) or (self.p_init == self.prior) or self.ongoing_scheduling:
                 if self.prob_avg is not None:
                     print(f"mean prob is {torch.mean(self.prob_avg)}")
                 #self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
                 self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_init
                 self.p_init = .3  # change it to get in this branch only once
             else:
+                print(f"Entered moving average branch")
                 self.prob_avg = \
                     self.beta * self.prob_avg + (1 - self.beta) * torch.mean(prob_masks, dim=0)
             
@@ -319,7 +336,7 @@ class ConDropout(nn.Module):
         
         # sample Be(p_interval)
         #print(f"Probabilistic Mask is {prob_masks}")
-        #import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         bin_masks = torch.bernoulli(prob_masks)
         #print(f"Bin Mask is {bin_masks}")
         #import pdb; pdb.set_trace()
