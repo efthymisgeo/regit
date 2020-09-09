@@ -321,7 +321,7 @@ class ConDropout(nn.Module):
                 self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_init
                 self.p_init = .3  # change it to get in this branch only once
             else:
-                print(f"Entered moving average branch")
+                # print(f"Entered moving average branch")
                 self.prob_avg = \
                     self.beta * self.prob_avg + (1 - self.beta) * torch.mean(prob_masks, dim=0)
             
@@ -336,7 +336,7 @@ class ConDropout(nn.Module):
         
         # sample Be(p_interval)
         #print(f"Probabilistic Mask is {prob_masks}")
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         bin_masks = torch.bernoulli(prob_masks)
         #print(f"Bin Mask is {bin_masks}")
         #import pdb; pdb.set_trace()

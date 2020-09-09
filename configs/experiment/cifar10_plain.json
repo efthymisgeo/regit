@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_CIFAR10_deep1_aug_plain_lr-0.001_5runs",
+    "experiment_id": "_CIFAR10_arch1_aug_plain_lr-sch-0.01-20_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -8,6 +8,9 @@
     "criterion": "CE",
     "regularization": false,
     "importance": false,
+    "prior": 1.0,
+    "reset_prior_epoch": -1,
+    "reseted_beta": 1.0,
     "idrop": {},
     "use_drop_schedule": {},
     "mixout": false,
@@ -22,10 +25,10 @@
     "optimization":
     {
         "optimizer": "SGD",
-        "lr": 0.001,
+        "lr": 0.01,
         "momentum": 0.9,
-        "scheduling": false,
-        "step_size": 10,
+        "scheduling": true,
+        "step_size": 20,
         "gamma": 0.1
     },
     "use_cuda": true,
