@@ -179,7 +179,7 @@ class ConDropout(nn.Module):
                 if (self.p_high_cond == self.p_mean + p_drop):
                     self.p_buckets = \
                         [self.p_mean - p_drop, self.p_mean + p_drop]
-                    print(f"BUCKET PROBS ARE {self.p_buckets}")
+                    # print(f"BUCKET PROBS ARE {self.p_buckets}")
                     self.ongoing_scheduling = False
                 else:
                     self.p_init = p_drop
@@ -362,8 +362,8 @@ class ConDropout(nn.Module):
         # possibly the mean case is much better
         if self.inv_trick == "exp-average":
             if (self.prob_avg is None) or (self.p_init == self.prior) or self.ongoing_scheduling:
-                if self.prob_avg is not None:
-                    print(f"mean prob is {torch.mean(self.prob_avg)}")
+                # if self.prob_avg is not None:
+                    # print(f"mean prob is {torch.mean(self.prob_avg)}")
                 #self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
                 if self.p_init == 0.0:
                     self.prob_avg = \
@@ -375,8 +375,8 @@ class ConDropout(nn.Module):
                                                             dim=0).size()) * self.p_init
                 self.p_init = .3  # change it to get in this branch only once
             else:
-                import pdb; pdb.set_trace()
-                print(f"Entered moving average branch")
+                # import pdb; pdb.set_trace()
+                # print(f"Entered moving average branch")
                 self.prob_avg = \
                     (1 - self.alpha) * self.prob_avg + self.alpha * torch.mean(prob_masks, dim=0)
             
