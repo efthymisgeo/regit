@@ -39,8 +39,8 @@ class ConDropout(nn.Module):
         correction_factor(float): the factor which is used for mean correction
         tollerance(float): when mean approx is acceptable
         inv_trick(string): which inversion trick to use
-        beta (float): parameter which handles the change of the mean 
-            probability of each neuron
+        alpha (float): elasticity parameter which handles the change 
+            of the mean probability of each neuron
         scheduling (str): 
         rk_history (str): short/long short is used for getting a short memory
             ranking (per batch) for all units while `long` encodes the fact
@@ -49,6 +49,8 @@ class ConDropout(nn.Module):
             batch mask. "average": for the prob_avg and "induced" for the
             induced probability based on the current units importance
         prior (float): uniform prior value
+        drop_low (bool): Flag which indicates whether to drop the low cond
+            or high cond units
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
@@ -59,12 +61,14 @@ class ConDropout(nn.Module):
                  correction_factor=0.01,
                  tollerance=0.01,
                  inv_trick="dropout",
-                 beta=0.999,
+                 alpha=1e-6,
                  scheduling="mean",
                  rk_history="short",
                  mask_prob="average",
-                 prior=0.5):
+                 prior=0.5,
+                 drop_low=True):
         super(ConDropout, self).__init__()
+        self.drop_low = drop_low
         self.cont_pdf = cont_pdf
         self.rk_history = rk_history
         self.scheduling = scheduling
@@ -77,12 +81,28 @@ class ConDropout(nn.Module):
             else:
                 self.p_buckets = [p_buckets]
             if len(self.p_buckets) == 2:
-                self.p_high = self.p_buckets[0]
-                self.p_low = self.p_buckets[1]
+                if self.drop_low:
+                    print("droppping low")
+                    # high cond bucket is assigned the low drop probability
+                    self.p_high_cond = min(self.p_buckets)
+                    # low cond bucket is assigned the high drop probability
+                    self.p_low_cond = max(self.p_buckets)
+                else:
+                    print("droppping high")
+                    # high cond bucket is assigned the max drop probability
+                    self.p_high_cond = max(self.p_buckets)
+                    # low cond bucket is assigned the min drop probability
+                    self.p_low_cond = min(self.p_buckets)
+
+                # the first (0) index refers to the low bucket 
+                # while the second (1) to the high bucket
+                self.p_buckets = \
+                    [self.p_low_cond, self.p_high_cond]
+
                 # this part calculates mul factors for each bucket
                 # in case of scheduling
-                self.f_low = self.p_low / np.mean(self.p_buckets)
-                self.f_high = self.p_high / np.mean(self.p_buckets)
+                self.f_low = self.p_low_cond / np.mean(self.p_buckets)
+                self.f_high = self.p_high_cond / np.mean(self.p_buckets)
             self.p_mean = np.mean(self.p_buckets)   
             self.n_buckets = n_buckets
             self.split_intervals = self._get_bucket_intervals()
@@ -101,7 +121,7 @@ class ConDropout(nn.Module):
         
         self.inv_trick = inv_trick
         if self.inv_trick == "exp-average":
-            self.beta = beta
+            self.alpha = alpha
             self.prob_avg = None
             self.ongoing_scheduling = False
             #self.mask_prob = "induced"
@@ -119,10 +139,10 @@ class ConDropout(nn.Module):
         """
         self.prob_avg = prob_avg
     
-    def reset_beta(self, beta):
-        """Sets beta to a given value
+    def reset_alpha(self, alpha):
+        """Sets alpha to a given value
         """
-        self.beta = beta
+        self.alpha = alpha
 
     def prob_step(self, p_drop, update="mean"):
         """Function which changes p_drop
@@ -134,16 +154,31 @@ class ConDropout(nn.Module):
         if update == "mean":
             self.p_mean = p_drop
         elif update == "bucket":
-            self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
+            if self.drop_low:
+                # when droping low cond units p_buckets[0] > p_buckets[1]
+                self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
+            else:
+                self.p_buckets = [self.p_mean - p_drop, self.p_mean + p_drop]
         elif update == "flip":
             self.p_buckets = [self.p_high - p_drop, self.p_low + p_drop]
         elif update == "re-init":
             self.p_init = p_drop
         elif update == "step":
-            if (self.p_high == self.p_mean + p_drop):
-                self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
+            if self.drop_low:
+                # mostly drop low cond units
+                if (self.p_low_cond == self.p_mean + p_drop):
+                    self.p_buckets = \
+                        [self.p_mean + p_drop, self.p_mean - p_drop]
+                else:
+                    self.p_buckets = [p_drop, p_drop]
             else:
-                self.p_buckets = [p_drop, p_drop]
+                # mostly drop high cond units
+                if (self.p_high_cond == self.p_mean + p_drop):
+                    self.p_buckets = \
+                        [self.p_mean - p_drop, self.p_mean + p_drop]
+                else:
+                    self.p_buckets = [p_drop, p_drop]
+
             # print(f"STEP PROBS ARE {self.p_buckets}")
         elif update == "from-zero":
             self.ongoing_scheduling = True
@@ -329,7 +364,7 @@ class ConDropout(nn.Module):
             else:
                 # print(f"Entered moving average branch")
                 self.prob_avg = \
-                    self.beta * self.prob_avg + (1 - self.beta) * torch.mean(prob_masks, dim=0)
+                    self.alpha * self.prob_avg + (1 - self.alpha) * torch.mean(prob_masks, dim=0)
             
             if self.rk_history == "long":
                 #import pdb; pdb.set_trace()

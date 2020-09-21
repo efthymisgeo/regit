@@ -924,7 +924,8 @@ class CNNFC(nn.Module):
         p_drop (float): drop probability for fc layers
         idrop_method (str):
         inv_trick (str):
-        beta (float):
+        alpha (float): elasticity parameter
+        drop_low (bool): flag which indicates the drop policy
         rk_history (str):
         p_buckets (list):
         pytorch_dropout (bool):
@@ -944,7 +945,8 @@ class CNNFC(nn.Module):
                  p_drop=0.5,
                  idrop_method="bucket",
                  inv_trick="dropout",
-                 beta=0.9999,
+                 alpha=1e-6,
+                 drop_low=True,
                  rk_history="short",
                  p_buckets=[0.25, 0.75],
                  pytorch_dropout=False,
@@ -978,11 +980,12 @@ class CNNFC(nn.Module):
         self.fc = self._make_fc()
 
         #idrop layers
+        self.drop_low = drop_low
         self.add_dropout = add_dropout
         self.pytorch_drop = pytorch_dropout
         self.method = idrop_method
         self.p_mean = p_drop
-        self.beta = beta
+        self.alpha = alpha
         self.rk_history = rk_history
         self.p_buckets = p_buckets
         self.n_buckets = len(p_buckets)
@@ -1001,12 +1004,12 @@ class CNNFC(nn.Module):
         for fc_drop in self.drop_layers:
             fc_drop.prob_step(p_drop, update=update)
     
-    def set_beta(self, beta):
+    def set_beta(self, alpha):
         """Helper function to access internal 'reset_beta' function of the
         custom dropout layers
         """
         for fc_drop in self.drop_layers:
-            fc_drop.reset_beta(beta)
+            fc_drop.reset_beta(alpha)
     
     def set_prior(self, prior):
         """Helper function to access internal 'reset_prior' function of the
@@ -1096,7 +1099,8 @@ class CNNFC(nn.Module):
                                             n_buckets=self.n_buckets,
                                             p_mean=self.p_mean,
                                             inv_trick=self.inv_trick,
-                                            beta=self.beta,
+                                            alpha=self.alpha,
+                                            drop_low=self.drop_low,
                                             rk_history=self.rk_history,
                                             prior=self.prior))
             else:

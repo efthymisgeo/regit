@@ -788,9 +788,9 @@ def new_train(model,
     if epoch == reset_prior_epoch:
         print(f"Reseted prior probabilities to {prior}")
         model.set_prior(prior)
-        if reseted_beta != -1:
-            print(f"Reseted plasticity factor to {reseted_beta}")
-            model.set_beta(reseted_beta)
+        if reseted_alpha != -1:
+            print(f"Reseted elasticity factor to {reseted_alpha}")
+            model.set_beta(reseted_alpha)
     
     # if RESET_COUNTER:
     #     model.reset_drop_cnt()

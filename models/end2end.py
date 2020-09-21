@@ -71,14 +71,17 @@ def run_training(model,
         map_rank_method = experiment_setup["idrop"].get("method", "bucket")
         p_buckets = experiment_setup["idrop"].get("p_buckets", [0.2, 0.8])
         inv_trick = experiment_setup["idrop"].get("inv_trick", "dropout")
-        beta = experiment_setup["idrop"].get("beta", 0.9999)
+        alpha = experiment_setup["idrop"].get("alpha", 1e-6)
+        drop_low = experiment_setup["idrop"].get("drop_low", True)
         schedule_strategy = experiment_setup["idrop"].get("schedule", None)
         rk_history = experiment_setup["idrop"].get("rk_history", "short")
+        # import pdb; pdb.set_trace()
     else:
         map_rank_method = "bucket"
         p_buckets = [0.2, 0.8]
         inv_trick = "dropout"
-        beta = 0.9999
+        drop_low = True
+        alpha = 0.9999
         rk_history = "short"
         schedule_strategy = None
 
@@ -380,7 +383,8 @@ def run_training(model,
                             p_drop=fc_setup["p_drop"],
                             idrop_method=map_rank_method,
                             inv_trick=inv_trick,
-                            beta=beta,
+                            alpha=alpha,
+                            drop_low=drop_low,
                             rk_history=rk_history,
                             p_buckets=p_buckets,
                             pytorch_dropout=experiment_setup["plain_drop"],
