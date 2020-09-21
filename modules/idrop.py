@@ -176,6 +176,7 @@ class ConDropout(nn.Module):
                 if (self.p_high_cond == self.p_mean + p_drop):
                     self.p_buckets = \
                         [self.p_mean - p_drop, self.p_mean + p_drop]
+                    print(f"BUCKET PROBS ARE {self.p_buckets}")
                 else:
                     self.p_buckets = [p_drop, p_drop]
 
@@ -364,7 +365,7 @@ class ConDropout(nn.Module):
             else:
                 # print(f"Entered moving average branch")
                 self.prob_avg = \
-                    self.alpha * self.prob_avg + (1 - self.alpha) * torch.mean(prob_masks, dim=0)
+                    (1 - self.alpha) * self.prob_avg + self.alpha * torch.mean(prob_masks, dim=0)
             
             if self.rk_history == "long":
                 #import pdb; pdb.set_trace()
