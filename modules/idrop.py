@@ -164,12 +164,15 @@ class ConDropout(nn.Module):
         elif update == "re-init":
             self.p_init = p_drop
         elif update == "step":
+            self.ongoing_scheduling = True
             if self.drop_low:
                 # mostly drop low cond units
                 if (self.p_low_cond == self.p_mean + p_drop):
                     self.p_buckets = \
                         [self.p_mean + p_drop, self.p_mean - p_drop]
+                    self.ongoing_scheduling = False
                 else:
+                    self.p_init = p_drop
                     self.p_buckets = [p_drop, p_drop]
             else:
                 # mostly drop high cond units
@@ -177,7 +180,9 @@ class ConDropout(nn.Module):
                     self.p_buckets = \
                         [self.p_mean - p_drop, self.p_mean + p_drop]
                     print(f"BUCKET PROBS ARE {self.p_buckets}")
+                    self.ongoing_scheduling = False
                 else:
+                    self.p_init = p_drop
                     self.p_buckets = [p_drop, p_drop]
 
             # print(f"STEP PROBS ARE {self.p_buckets}")
@@ -360,10 +365,18 @@ class ConDropout(nn.Module):
                 if self.prob_avg is not None:
                     print(f"mean prob is {torch.mean(self.prob_avg)}")
                 #self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_mean
-                self.prob_avg = prob_masks.data.new_ones(torch.mean(prob_masks, dim=0).size()) * self.p_init
+                if self.p_init == 0.0:
+                    self.prob_avg = \
+                        prob_masks.data.new_ones(torch.mean(prob_masks,
+                                                            dim=0).size())
+                else: 
+                    self.prob_avg = \
+                        prob_masks.data.new_ones(torch.mean(prob_masks,
+                                                            dim=0).size()) * self.p_init
                 self.p_init = .3  # change it to get in this branch only once
             else:
-                # print(f"Entered moving average branch")
+                import pdb; pdb.set_trace()
+                print(f"Entered moving average branch")
                 self.prob_avg = \
                     (1 - self.alpha) * self.prob_avg + self.alpha * torch.mean(prob_masks, dim=0)
             
@@ -377,8 +390,7 @@ class ConDropout(nn.Module):
             raise NotImplementedError("not an implemented method")
         
         # sample Be(p_interval)
-        #print(f"Probabilistic Mask is {prob_masks}")
-        # import pdb; pdb.set_trace()
+        # print(f"Probabilistic Mask is {prob_masks}")
         bin_masks = torch.bernoulli(prob_masks)
         #print(f"Bin Mask is {bin_masks}")
         #import pdb; pdb.set_trace()
