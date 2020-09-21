@@ -114,8 +114,15 @@ def run_training(model,
                                      saturation_epoch * epoch_steps,
                                      drop_schedule_setup["gamma"])
         elif drop_schedule_setup["prob_scheduler"] == "Step":
-            # TODO needs to be updated
-            pass
+            step_epochs = drop_schedule_setup["peak_epoch"] * epoch_steps
+            # we are given the initial value as well as the delta value
+            # the mean is specified from the 'prior' value
+            # print("\nStep Scheduler is being used \n")
+            p_before = p_drop[0]
+            p_delta = p_drop[1]
+            p_schedule = \
+                StepScheduler([p_before, p_delta], step_epochs)
+
         else:
             raise NotImplementedError(f"{drop_schedule_setup['prob_scheduler']}"
                                       "is not a valid scheduler. " 

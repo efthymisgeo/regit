@@ -139,6 +139,12 @@ class ConDropout(nn.Module):
             self.p_buckets = [self.p_high - p_drop, self.p_low + p_drop]
         elif update == "re-init":
             self.p_init = p_drop
+        elif update == "step":
+            if (self.p_high == self.p_mean + p_drop):
+                self.p_buckets = [self.p_mean + p_drop, self.p_mean - p_drop]
+            else:
+                self.p_buckets = [p_drop, p_drop]
+            # print(f"STEP PROBS ARE {self.p_buckets}")
         elif update == "from-zero":
             self.ongoing_scheduling = True
             # this part handles scheduling mean from zero

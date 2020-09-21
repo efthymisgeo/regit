@@ -204,8 +204,10 @@ class StepScheduler(Scheduler):
         super(StepScheduler, self).__init__()
         self.start = point[0]
         self.end = point[1]
-        self.n_points = n_points
-        self.time = self.start * np.ones(n_points)
+        # add an extra time step for the final value
+        self.n_points = n_points + 1
+        self.time = self.start * np.ones(self.n_points)
+        self.time[-1] = self.end
         self.t = 0
 
     def f_schedule(self, idx=None):
