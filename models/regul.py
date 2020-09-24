@@ -133,6 +133,7 @@ if __name__ == '__main__':
         inv_trick = exp_setup["idrop"].get("inv_trick", "dropout")
         alpha = exp_setup["idrop"].get("alpha", 1e-5)
         drop_low = exp_setup["idrop"].get("drop_low", True)
+        sigma_drop = exp_setup["idrop"].get("sigma_drop", 0.05)
         rk_history = exp_setup["idrop"].get("rk_history", "short")
     else:
         map_rank_method = False
@@ -140,6 +141,7 @@ if __name__ == '__main__':
         inv_trick = "dropout"
         drop_low = True
         alpha = 1e-5
+        sigma_drop = 0.05
         rk_history = "short"
     print_config(exp_setup)
 
@@ -201,6 +203,7 @@ if __name__ == '__main__':
                         idrop_method=map_rank_method,
                         p_buckets=p_buckets,
                         inv_trick=inv_trick,
+                        sigma_drop=sigma_drop,
                         alpha=alpha,
                         rk_history=rk_history,
                         pytorch_dropout=exp_setup["plain_drop"],

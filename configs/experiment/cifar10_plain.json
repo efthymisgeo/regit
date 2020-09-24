@@ -32,7 +32,7 @@
         "gamma": 0.1
     },
     "use_cuda": true,
-    "cuda_device": "cuda:1",
+    "cuda_device": "cuda:0",
     "save_model": true,
     "plain_drop": true,
     "p_drop": 0.3,

@@ -924,6 +924,7 @@ class CNNFC(nn.Module):
         p_drop (float): drop probability for fc layers
         idrop_method (str):
         inv_trick (str):
+        sigma_drop (float): truncated gaussian sigma param for p_drop
         alpha (float): elasticity parameter
         drop_low (bool): flag which indicates the drop policy
         rk_history (str):
@@ -945,6 +946,7 @@ class CNNFC(nn.Module):
                  p_drop=0.5,
                  idrop_method="bucket",
                  inv_trick="dropout",
+                 sigma_drop=0.05,
                  alpha=1e-6,
                  drop_low=True,
                  rk_history="short",
@@ -990,7 +992,8 @@ class CNNFC(nn.Module):
         self.p_buckets = p_buckets
         self.n_buckets = len(p_buckets)
         self.inv_trick = inv_trick
-        self.prior = prior 
+        self.prior = prior
+        self.sigma_drop = sigma_drop
 
         # get dropout layers
         self.drop_layers = self._make_drop()
@@ -1102,7 +1105,8 @@ class CNNFC(nn.Module):
                                             alpha=self.alpha,
                                             drop_low=self.drop_low,
                                             rk_history=self.rk_history,
-                                            prior=self.prior))
+                                            prior=self.prior,
+                                            sigma_drop=self.sigma_drop))
             else:
                 drop_list.append(nn.Dropout(p=self.p_mean))
         return nn.ModuleList(drop_list)

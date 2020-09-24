@@ -51,6 +51,8 @@ class ConDropout(nn.Module):
         prior (float): uniform prior value
         drop_low (bool): Flag which indicates whether to drop the low cond
             or high cond units
+        sigma_drop (float): std for gaussian sampling over 
+            the dropout probability
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
@@ -66,13 +68,15 @@ class ConDropout(nn.Module):
                  rk_history="short",
                  mask_prob="average",
                  prior=0.5,
-                 drop_low=True):
+                 drop_low=True,
+                 sigma_drop=0.05):
         super(ConDropout, self).__init__()
         self.drop_low = drop_low
         self.cont_pdf = cont_pdf
         self.rk_history = rk_history
         self.scheduling = scheduling
         self.bucket_size = bucket_size
+        self.sigma_drop = sigma_drop
         if self.cont_pdf not in SUPPORTED_DISTRIBUTIONS:
                 raise NotImplementedError("Not a supported pdf")
         elif self.cont_pdf == "bucket":
@@ -250,7 +254,14 @@ class ConDropout(nn.Module):
         for i, _ in enumerate(self.split_intervals[:-1]):
             start_idx = int(np.floor(self.split_intervals[i] * n_units))
             end_idx = int(np.floor(self.split_intervals[i+1] * n_units))
-            prob_masks[:,start_idx:end_idx] = 1 - self.p_buckets[i]
+            if self.sigma_drop == 0.0:
+                p_buck_sampled = 1 - self.p_buckets[i]
+            else:
+                # import pdb; pdb.set_trace()
+                p_buck_sampled = \
+                    1 - self.p_buckets[i] - np.abs(np.random.normal(0.0,
+                                                                    self.sigma_drop))
+            prob_masks[:,start_idx:end_idx] = p_buck_sampled
         return prob_masks
 
     def sort_units(self, input, ranking):

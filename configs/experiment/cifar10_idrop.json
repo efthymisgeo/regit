@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_CIFAR10_DEEP-1_AUG_DH_STEP-0.5-0.4-idrop-1e-6-sch-2_lr-sch-0.01-40_5runs",
+    "experiment_id": "_CIFAR10_DEEP-1_AUG_DH_STEP-0.5-0.25-S-0.05-idrop-1e-5-sch-1_lr-sch-0.01-40_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -14,8 +14,8 @@
         "method": "bucket",
         "inv_trick": "exp-average",
         "rk_history": "short",
-        "alpha": 1e-6,
-        "p_buckets": [0.10, 0.90],
+        "alpha": 1e-5,
+        "p_buckets": [0.25, 0.75],
         "schedule": "step",
         "drop_low": false
     },
@@ -24,8 +24,9 @@
     "reseted_beta": 1.0,
     "use_drop_schedule": {
         "prob_scheduler": "Step",
-        "peak_epoch": 1,
-        "p_drop": [0.5, 0.4]
+        "peak_epoch": 4,
+        "p_drop": [0.5, 0.25],
+        "sigma": 0.05
     },
     "mixout": false,
     "enable_writer": false,
@@ -35,7 +36,7 @@
     "batch_size": 64,
     "test_batch_size": 1000,
     "valid_size": 0.25,
-    "patience": 10,
+    "patience": 15,
     "epochs": 500,
     "weught_decay": 0.0,
     "optimization":
