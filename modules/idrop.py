@@ -53,6 +53,7 @@ class ConDropout(nn.Module):
             or high cond units
         sigma_drop (float): std for gaussian sampling over 
             the dropout probability
+        p_thres (list): list of lists with thershold probabilities
     """
     def __init__(self,
                  p_buckets=[0.25, 0.75],
@@ -69,7 +70,9 @@ class ConDropout(nn.Module):
                  mask_prob="average",
                  prior=0.5,
                  drop_low=True,
-                 sigma_drop=0.05):
+                 sigma_drop=0.05,
+                 p_thres=[(0.1, 0.5),
+                          (0.6, 0.9)]):
         super(ConDropout, self).__init__()
         self.drop_low = drop_low
         self.cont_pdf = cont_pdf
@@ -77,6 +80,7 @@ class ConDropout(nn.Module):
         self.scheduling = scheduling
         self.bucket_size = bucket_size
         self.sigma_drop = sigma_drop
+        self.p_thres = p_thres
         if self.cont_pdf not in SUPPORTED_DISTRIBUTIONS:
                 raise NotImplementedError("Not a supported pdf")
         elif self.cont_pdf == "bucket":
@@ -254,14 +258,17 @@ class ConDropout(nn.Module):
         for i, _ in enumerate(self.split_intervals[:-1]):
             start_idx = int(np.floor(self.split_intervals[i] * n_units))
             end_idx = int(np.floor(self.split_intervals[i+1] * n_units))
-            if self.sigma_drop == 0.0:
-                p_buck_sampled = 1 - self.p_buckets[i]
+            if self.sigma_drop == 0.0 or self.ongoing_scheduling:
+                p_buck_sampled = self.p_buckets[i]
             else:
                 # import pdb; pdb.set_trace()
                 p_buck_sampled = \
-                    1 - self.p_buckets[i] - np.abs(np.random.normal(0.0,
-                                                                    self.sigma_drop))
-            prob_masks[:,start_idx:end_idx] = p_buck_sampled
+                    np.minimum(
+                        self.p_thres[i][0] \
+                            + np.abs(np.random.normal(0.0, self.sigma_drop)),
+                        self.p_thres[i][1])
+                # import pdb; pdb.set_trace()
+            prob_masks[:,start_idx:end_idx] = 1 - p_buck_sampled
         return prob_masks
 
     def sort_units(self, input, ranking):
