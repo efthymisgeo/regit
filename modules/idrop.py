@@ -70,7 +70,7 @@ class ConDropout(nn.Module):
                  mask_prob="average",
                  prior=0.5,
                  drop_low=True,
-                 sigma_drop=0.05,
+                 sigma_drop=[0.05, 0.05],
                  p_thres=[(0.1, 0.5),
                           (0.6, 0.9)]):
         super(ConDropout, self).__init__()
@@ -258,14 +258,14 @@ class ConDropout(nn.Module):
         for i, _ in enumerate(self.split_intervals[:-1]):
             start_idx = int(np.floor(self.split_intervals[i] * n_units))
             end_idx = int(np.floor(self.split_intervals[i+1] * n_units))
-            if self.sigma_drop == 0.0 or self.ongoing_scheduling:
+            if self.sigma_drop[i] == 0.0 or self.ongoing_scheduling:
                 p_buck_sampled = self.p_buckets[i]
             else:
                 # import pdb; pdb.set_trace()
                 p_buck_sampled = \
                     np.minimum(
                         self.p_thres[i][0] \
-                            + np.abs(np.random.normal(0.0, self.sigma_drop)),
+                            + np.abs(np.random.normal(0.0, self.sigma_drop[i])),
                         self.p_thres[i][1])
                 # import pdb; pdb.set_trace()
             prob_masks[:,start_idx:end_idx] = 1 - p_buck_sampled
