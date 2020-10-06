@@ -196,7 +196,7 @@ def run_training(model,
         respect_attr=False
     else:
         sample_batch = attribute_setup.get("sample_batch", None)
-        n_steps = attribute_setup.get("n_steps", 25)
+        n_steps = attribute_setup.get("n_steps", 10)
         sigma_attr = attribute_setup.get("sigma_attr", None)
         sigma_input = attribute_setup.get("sigma_input", None)
         momentum = attribute_setup.get("momentum", None)
