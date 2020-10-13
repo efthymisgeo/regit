@@ -1,0 +1,22 @@
+{
+    "CNN2D":
+    {
+        "kernels": [32, 32, 64],
+        "kernel_size": [5, 5, 5],
+        "maxpool": [true, true, true],
+        "pool_size": [2, 2],
+        "padding": [2, 2, 2],
+        "stride": [1, 1, 1],
+        "conv_drop": [false, false, false],
+        "p_conv_drop": 0.1,
+        "conv_batch_norm": false,
+        "activation": "relu"
+    },
+    "FC":
+    {
+        "fc_layers": [4096, 4096, 4096, 4096, 4096, 4096, 10],
+        "activation": "relu",
+        "fc_drop": false,
+        "p_drop": 0.5
+    }
+}
