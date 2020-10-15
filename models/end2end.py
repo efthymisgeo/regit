@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from utils.model_utils import train, new_train, test, validate, EarlyStopping, \
     LinearScheduler, MultiplicativeScheduler, \
-    StepScheduler, ExponentialScheduler 
+    StepScheduler, ExponentialScheduler
 from modules.vgg import *
 from utils.mnist import MNIST
 from configs.config import Config
@@ -207,6 +207,8 @@ def run_training(model,
     top_percentile = dict.fromkeys(range(0, 64), 0)
     bottom_percentile = dict.fromkeys(range(0, 64), 0)
 
+    clip_value = optim_setup.get("clip_value", 0.0)
+
     # for p in model.features.parameters():
     #     print(p)
     #     break
@@ -266,6 +268,7 @@ def run_training(model,
                                     sigma_input=sigma_input,
                                     adapt_to_tensor=adapt_to_tensor,
                                     momentum=momentum,
+                                    clip_value=clip_value,
                                     per_sample_noise=per_sample_noise,
                                     respect_attr=respect_attr,
                                     calc_stats=calc_stats,

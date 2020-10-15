@@ -939,6 +939,7 @@ class CNNFC(nn.Module):
                  kernels=[40, 100], kernel_size=2,
                  stride=1, padding=0,
                  maxpool=True, pool_size=[2, 2],
+                 pool_stride=[2,2],
                  conv_drop=False, p_conv_drop=0.2,
                  conv_batch_norm=False, regularization=True,
                  activation="relu", fc_layers=[100,100],
@@ -965,6 +966,7 @@ class CNNFC(nn.Module):
         self.padding = padding
         self.maxpool = maxpool
         self.pool_size = pool_size
+        self.pool_stride = pool_stride
         self.conv_drop = conv_drop
         self.p_conv_drop = p_conv_drop
         self.conv_batch_norm = conv_batch_norm
@@ -1071,9 +1073,10 @@ class CNNFC(nn.Module):
                 conv_layers.append(nn.BatchNorm2d(self.channels[i_cnn][1]))
             conv_layers.append(self._get_activ())  # append activation function
             if self.maxpool[i_cnn]:
-                conv_layers.append(nn.MaxPool2d(kernel_size=self.pool_size))
-                x = x // self.pool_size[0]
-                y = y // self.pool_size[1]
+                conv_layers.append(nn.MaxPool2d(kernel_size=self.pool_size,
+                                                stride=self.pool_stride))
+                x = (x + self.pool_stride[0] - self.pool_size[0]) // self.pool_stride[0]
+                y = (y + self.pool_stride[1] - self.pool_size[1]) // self.pool_stride[1]
             if self.conv_drop[i_cnn]:
                 conv_layers.append(nn.Dropout(p=0.5))
 

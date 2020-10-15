@@ -18,6 +18,24 @@ from captum.attr import LayerConductance
 import gc
 
 
+# class WarmUpLR(_LRScheduler):
+#     """warmup_training learning rate scheduler
+#     Args:
+#         optimizer: optimzier(e.g. SGD)
+#         total_iters: totoal_iters of warmup phase
+#     """
+#     def __init__(self, optimizer, total_iters, last_epoch=-1):
+
+#         self.total_iters = total_iters
+#         super().__init__(optimizer, last_epoch)
+
+#     def get_lr(self):
+#         """we will use the first m batches, and set the learning
+#         rate to base_lr * m / total_iters
+#         """
+#         return [base_lr * self.last_epoch / (self.total_iters + 1e-8) for base_lr in self.base_lrs]
+
+
 class Scheduler(object):
     """
     An anbstract class representing a scheduler. All other custom schedulers
@@ -659,6 +677,7 @@ def new_train(model,
               sigma_input=None,
               adapt_to_tensor=False,
               momentum=None,
+              clip_value=0.0,
               per_sample_noise=False,
               respect_attr=False,
               calc_stats=False,
@@ -707,6 +726,8 @@ def new_train(model,
             added on the input to "mislead" the attributions
         momentum (float): momentum term to be added in the attribution
             calculation
+        clip_value (float): a float which when greater than zero enables
+            gradient clipping
         per_sample_noise (bool): when true the noise is added per sample rather
             than per batch, enforcing the use of a different mask for every
             sample
@@ -875,6 +896,8 @@ def new_train(model,
         batch_loss.append(loss.item())
         train_loss += loss.item()
         loss.backward()
+        if clip_value > 0:
+            _ = torch.nn.utils.clip_grad_value_(model.parameters(), clip_value)
         optimizer.step()
 
         #prob_value = p_drop

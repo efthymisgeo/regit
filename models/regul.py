@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(
 from modules.vgg import *
 from modules.models import CNN2D, CNNFC
 from utils.model_utils import train, test, validate, EarlyStopping
-from utils.mnist import MNIST, CIFAR10
+from utils.mnist import MNIST, CIFAR10, CIFAR100
 from utils.config_loader import print_config
 from utils.opts import load_experiment_options
 from models.end2end import run_training
@@ -106,9 +106,8 @@ if __name__ == '__main__':
         data = MNIST(data_setup, exp_setup)
     elif data_setup["name"] == "CIFAR10":
         data = CIFAR10(data_setup, exp_setup)
-    elif data_setup["name"] == "CIFAR100":
-        #TODO
-        pass
+    elif data_setup["name"] == "CIFAR100": 
+        data = CIFAR100(data_setup, exp_setup)
     else:
         raise NotImplementedError("Not a valid dataset")
     train_loader, val_loader = data.get_train_val_loaders()
@@ -191,6 +190,8 @@ if __name__ == '__main__':
                         padding=cnn_setup["padding"],
                         maxpool=cnn_setup["maxpool"],
                         pool_size=cnn_setup["pool_size"],
+                        pool_stride=cnn_setup.get("pool_stride",
+                                                  cnn_setup["pool_size"]),
                         conv_drop=cnn_setup["conv_drop"],
                         p_conv_drop=cnn_setup["p_conv_drop"],
                         conv_batch_norm=cnn_setup["conv_batch_norm"],
