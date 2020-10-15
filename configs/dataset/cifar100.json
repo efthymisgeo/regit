@@ -1,0 +1,8 @@
+{
+    "seed": 10,
+    "log_interval": 10,
+    "name": "CIFAR100",
+    "input_shape": [3, 32, 32],
+    "normalization": [[0.5071, 0.4876, 0.4408], [0.2675, 0.2565, 0.2761]],
+    "augmentation": true
+}   
