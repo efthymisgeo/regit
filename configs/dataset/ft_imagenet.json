@@ -1,0 +1,8 @@
+{
+    "seed": 10,
+    "log_interval": 10,
+    "name": "ImageNet",
+    "input_shape": [3, 224, 224],
+    "normalization": [[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]],
+    "augmentation": true
+}

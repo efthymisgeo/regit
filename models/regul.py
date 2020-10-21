@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(
 from modules.vgg import *
 from modules.models import CNN2D, CNNFC
 from utils.model_utils import train, test, validate, EarlyStopping
-from utils.mnist import MNIST, CIFAR10, CIFAR100
+from utils.mnist import MNIST, CIFAR10, CIFAR100, IMAGE_NET, STL10
 from utils.config_loader import print_config
 from utils.opts import load_experiment_options
 from models.end2end import run_training
@@ -108,6 +108,10 @@ if __name__ == '__main__':
         data = CIFAR10(data_setup, exp_setup)
     elif data_setup["name"] == "CIFAR100": 
         data = CIFAR100(data_setup, exp_setup)
+    elif data_setup["name"] == "ImageNet":
+        data = IMAGE_NET(data_setup, exp_setup)
+    elif data_setup["name"] == "STL10":
+        data = STL10(data_setup, exp_setup)
     else:
         raise NotImplementedError("Not a valid dataset")
     train_loader, val_loader = data.get_train_val_loaders()
@@ -164,15 +168,17 @@ if __name__ == '__main__':
             data = MNIST(data_setup, exp_setup)
         elif data_setup["name"] == "CIFAR10":
             data = CIFAR10(data_setup, exp_setup)
-        elif data_setup["name"] == "CIFAR100":
-            #TODO
-            pass
+        elif data_setup["name"] == "CIFAR100": 
+            data = CIFAR100(data_setup, exp_setup)
+        elif data_setup["name"] == "ImageNet":
+            data = ImageNet(data_setup, exp_setup)
+        elif data_setup["name"] == "STL10":
+            data = STL10(data_setup, exp_setup)
         else:
             raise NotImplementedError("Not a valid dataset")
         train_loader, val_loader = data.get_train_val_loaders()
         test_loader = data.get_test_loader()
         print_config(data_setup)
-
         
         print("================== RUN {} ==================".format(i))
         
@@ -228,6 +234,22 @@ if __name__ == '__main__':
                           requires_grad=exp_setup["requires_grad"],
                           grad_module=exp_setup["grad_module"],
                           new_arch=model_setup)
+
+            if experiment_setup["criterion"] == "NLL":
+                criterion = nn.NLLLoss()
+            elif experiment_setup["criterion"] == "CE":
+                criterion = nn.CrossEntropyLoss()
+            else:
+                raise NotImplementedError("Not a valid loss function")
+            print(f"criterion is {experiment_setup['criterion']}")
+            
+            model = model.to(device)
+            test_loss, test_acc, _, test_loss_list =\
+                test(model, test_loader, criterion, device=device)
+            
+            print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
+
+            model = model.to("cpu")
 
             if importance:
                 layer_list = []
