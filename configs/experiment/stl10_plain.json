@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_STL-10-sriva-2_drop-0.5_aug_lr-sch-0.01-15_5runs",
+    "experiment_id": "_STL-10-sriva-3_plain_aug_lr-sch-0.01-25_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -28,7 +28,7 @@
         "lr": 0.01,
         "momentum": 0.9,
         "scheduling": true,
-        "step_size": 15,
+        "step_size": 25,
         "gamma": 0.1
     },
     "use_cuda": true,

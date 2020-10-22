@@ -1,0 +1,60 @@
+{
+    "model_name": "CNNFC",
+    "experiment_id": "_STL10_sriva-deep-2-bn_BS-0.1875-STEPS-5_AUG_DH-ScnrA-0.05-idrop-1e-4-sch-5_lr-sch-0.01-25_5runs",
+    "imp_sampling": 1,
+    "checkpoint_folder": "checkpoints",
+    "experiment_folder": "experiments",
+    "fine_tune": false,
+    "ft_method": "dropout",
+    "criterion": "CE",
+    "regularization": true,
+    "importance": true,
+    "aggregate": true,
+    "idrop":{
+        "method": "bucket",
+        "inv_trick": "exp-average",
+        "rk_history": "short",
+        "alpha": 1e-4,
+        "p_buckets": [0.25, 0.75],
+        "schedule": "step",
+        "drop_low": false,
+        "sigma_drop": [0.05, 0.05]
+    },
+    "reset_prior_epoch": -1,
+    "prior": 0.35,
+    "reseted_beta": 1.0,
+    "use_drop_schedule": {
+        "prob_scheduler": "Step",
+        "peak_epoch": 3,
+        "p_drop": [0.5, 0.25]
+    },
+    "mixout": false,
+    "enable_writer": false,
+    "compute_imp_stats": false,
+    "runs": 5,
+    "batch_size": 32,
+    "test_batch_size": 32,
+    "valid_size": 0.10,
+    "patience": 20,
+    "epochs": 500,
+    "weught_decay": 0.0,
+    "optimization":
+    {
+        "optimizer": "SGD",
+        "lr": 0.01,
+        "momentum": 0.9,
+        "weight_decay": 0.0,
+        "scheduling": true,
+        "step_size": 25,
+        "gamma": 0.1
+    },
+    "use_cuda": true,
+    "cuda_device": "cuda:0",
+    "save_model": true,
+    "plain_drop": false,
+    "p_drop": 0.5,
+    "attribution": {
+        "n_steps": 5,
+        "sample_batch": 0.1875
+    }
+}
