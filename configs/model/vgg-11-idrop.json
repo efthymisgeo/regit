@@ -1,13 +1,17 @@
 {
     "FC":
     {
-        "fc_layers": [512, 512, 512, 10],
+        "fc_layers": [25088, 4096, 4096, 1000],
         "activation": "relu",
         "algorithm": "idrop",
-        "p_bucket": [0.9, 0.1],
+        "p_bucket": [0.25, 0.75],
         "method": "bucket",
         "inv_trick": "exp-average",
-        "rk_history": "long",
-        "betta": 0.99999
+        "rk_history": "short",
+        "alpha": 1e-1,
+        "drop_low": false,
+        "schedule": "step",
+        "sigma_drop": [0.05, 0.05],
+        "prior": 0.35
     }
 }

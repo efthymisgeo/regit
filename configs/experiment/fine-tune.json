@@ -1,6 +1,6 @@
 {
     "model_name": "vgg-11",
-    "experiment_id": "ft-all-vgg11_drop_0.7_aug_lr-sch_0.01_10_0.1_5runs",
+    "experiment_id": "ft-all-vgg11_drop_0.5_aug_lr_0.01_test",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -12,42 +12,34 @@
     "regularization": true,
     "importance": false,
     "aggregate": true,
-    "idrop":{
-        "method": "bucket",
-        "inv_trick": "exp-average",
-        "rk_history": "long",
-        "betta": 0.88,
-        "p_buckets": [0.1, 0.5, 0.9]
-    },
-    "use_drop_schedule": {
-    },
+    "prior": 1.0,
+    "reset_prior_epoch": -1,
+    "reseted_beta": 1.0,
+    "idrop": {},
+    "use_drop_schedule": {},
     "mixout": false,
-    "enable_writer": false,
     "compute_imp_stats": false,
-    "runs": 5,
-    "n_steps": 10,
-    "batch_size": 64,
-    "test_batch_size": 1000,
+    "runs": 1,
+    "batch_size": 128,
+    "test_batch_size": 128,
     "valid_size": 0.25,
-    "patience": 10,
-    "epochs": 500,
+    "patience": 3,
+    "epochs": 5,
     "weught_decay": 0.0,
     "optimization":
     {
         "optimizer": "SGD",
         "lr": 0.01,
         "momentum": 0.9,
-        "weight_decay": 0.0,
-        "scheduling": true,
-        "step_size": 10,
+        "scheduling": false,
+        "step_size": 12,
         "gamma": 0.1
     },
     "use_cuda": true,
     "cuda_device": "cuda:0",
     "save_model": true,
     "plain_drop": true,
-    "p_drop": 0.5,
-    "attribution":
-    {
-    }
+    "p_drop": 0.3,
+    "attribution": {}
 }
+

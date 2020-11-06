@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_CIFAR100_sriva-deep-2-bn_plain_lr-sch-0.01-0.1-20_5runs",
+    "experiment_id": "_CIFAR100_sriva-deep-3-bn_plain_lr-sch-0.01-0.1-15_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -28,12 +28,12 @@
         "lr": 0.01,
         "momentum": 0.9,
         "scheduling": true,
-        "step_size": 20,
+        "step_size": 15,
         "gamma": 0.1,
         "clip_value": 0.0
     },
     "use_cuda": true,
-    "cuda_device": "cuda:0",
+    "cuda_device": "cuda:1",
     "save_model": true,
     "plain_drop": true,
     "p_drop": 0.3,

@@ -31,6 +31,7 @@ def run_training(model,
     """
     NEW_VERSION = True
     device = experiment_setup["device"]
+    fc_only = experiment_setup.get("fc_only", False)
     calc_stats = experiment_setup["compute_imp_stats"]
     regularization = experiment_setup["regularization"]
     optim_setup = experiment_setup["optimization"]
@@ -341,9 +342,12 @@ def run_training(model,
                         for i in range(num_units):
                             writer.add_scalar(f"{key}_unit_{i}", stat_dict[f"unit_{i}"], epoch-1)
             
-        if epoch % test_freq == 0 or epoch == 1:
+        if epoch % test_freq == 0 or epoch == 1 or experiment_setup["fine_tune"]:
             test_loss, test_acc, _, test_loss_list =\
                 test(model, test_loader, criterion, device=device)
+            print(f"At epoch {epoch} the accuracy on test set is {test_acc}"
+                  f" and the validation loss is {val_loss}, while the test"
+                  f" loss is {test_loss}")
             loss_dict["test"].append(test_loss)
             acc_dict["test"].append(test_acc)
         
@@ -369,18 +373,8 @@ def run_training(model,
                             new_arch=model_setup)
     else:
         if NEW_VERSION is True:
-            saved_model = CNNFC(input_shape=data_setup["input_shape"],
-                            kernels=cnn_setup["kernels"],
-                            kernel_size=cnn_setup["kernel_size"],
-                            stride=cnn_setup["stride"],
-                            padding=cnn_setup["padding"],
-                            maxpool=cnn_setup["maxpool"],
-                            pool_size=cnn_setup["pool_size"],
-                            pool_stride=cnn_setup.get("pool_stride",
-                                                      cnn_setup["pool_size"]),
-                            conv_drop=cnn_setup["conv_drop"],
-                            p_conv_drop=cnn_setup["p_conv_drop"],
-                            conv_batch_norm=cnn_setup["conv_batch_norm"],
+            if fc_only:
+                saved_model = CNNFC(input_shape=data_setup["input_shape"],
                             regularization=experiment_setup["regularization"],
                             activation=fc_setup["activation"],
                             fc_layers=fc_setup["fc_layers"],
@@ -394,7 +388,36 @@ def run_training(model,
                             p_buckets=p_buckets,
                             pytorch_dropout=experiment_setup["plain_drop"],
                             prior=experiment_setup["prior"],
-                            device=model.device).to(model.device)
+                            device=model.device,
+                            fc_only=fc_only).to(model.device)
+            else:
+                saved_model = CNNFC(input_shape=data_setup["input_shape"],
+                                kernels=cnn_setup["kernels"],
+                                kernel_size=cnn_setup["kernel_size"],
+                                stride=cnn_setup["stride"],
+                                padding=cnn_setup["padding"],
+                                maxpool=cnn_setup["maxpool"],
+                                pool_size=cnn_setup["pool_size"],
+                                pool_stride=cnn_setup.get("pool_stride",
+                                                        cnn_setup["pool_size"]),
+                                conv_drop=cnn_setup["conv_drop"],
+                                p_conv_drop=cnn_setup["p_conv_drop"],
+                                conv_batch_norm=cnn_setup["conv_batch_norm"],
+                                regularization=experiment_setup["regularization"],
+                                activation=fc_setup["activation"],
+                                fc_layers=fc_setup["fc_layers"],
+                                add_dropout=fc_setup["fc_drop"],
+                                p_drop=fc_setup["p_drop"],
+                                idrop_method=map_rank_method,
+                                inv_trick=inv_trick,
+                                alpha=alpha,
+                                drop_low=drop_low,
+                                rk_history=rk_history,
+                                p_buckets=p_buckets,
+                                pytorch_dropout=experiment_setup["plain_drop"],
+                                prior=experiment_setup["prior"],
+                                device=model.device,
+                                fc_only=fc_only).to(model.device)
         else:
             saved_model = CNN2D(input_shape=data_setup["input_shape"],
                             kernels=cnn_setup["kernels"],

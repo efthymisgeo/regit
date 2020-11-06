@@ -133,6 +133,7 @@ if __name__ == '__main__':
     # experimental setup parameters
     print("==================Experimental Parameters=========================")
     regularization = exp_setup["regularization"]
+    fc_only = exp_setup.get("fc_only", False)
     importance = exp_setup["importance"]  # True to use importance
     use_drop_schedule = True if exp_setup["use_drop_schedule"] is not None else False  # True to use scheduler
     mixout = exp_setup["mixout"]
@@ -198,38 +199,61 @@ if __name__ == '__main__':
         
         if not exp_setup["fine_tune"]:
             print("--------- Training CNN-FC is about to take off ---------")
-            cnn_setup = model_setup["CNN2D"]
-            fc_setup = model_setup["FC"]
-    
-            # define model
-            model = \
-                CNNFC(input_shape=input_shape,
-                        kernels=cnn_setup["kernels"],
-                        kernel_size=cnn_setup["kernel_size"],
-                        stride=cnn_setup["stride"],
-                        padding=cnn_setup["padding"],
-                        maxpool=cnn_setup["maxpool"],
-                        pool_size=cnn_setup["pool_size"],
-                        pool_stride=cnn_setup.get("pool_stride",
-                                                  cnn_setup["pool_size"]),
-                        conv_drop=cnn_setup["conv_drop"],
-                        p_conv_drop=cnn_setup["p_conv_drop"],
-                        conv_batch_norm=cnn_setup["conv_batch_norm"],
-                        regularization=regularization,
-                        activation=fc_setup["activation"],
-                        fc_layers=fc_setup["fc_layers"],
-                        add_dropout=fc_setup["fc_drop"],
-                        p_drop=fc_setup["p_drop"],
-                        drop_low=drop_low,
-                        idrop_method=map_rank_method,
-                        p_buckets=p_buckets,
-                        inv_trick=inv_trick,
-                        sigma_drop=sigma_drop,
-                        alpha=alpha,
-                        rk_history=rk_history,
-                        pytorch_dropout=exp_setup["plain_drop"],
-                        prior=exp_setup["prior"],
-                        device=device).to(device)
+            if not fc_only:
+                cnn_setup = model_setup["CNN2D"]
+                fc_setup = model_setup["FC"]
+        
+                # define model
+                model = \
+                    CNNFC(input_shape=input_shape,
+                            kernels=cnn_setup["kernels"],
+                            kernel_size=cnn_setup["kernel_size"],
+                            stride=cnn_setup["stride"],
+                            padding=cnn_setup["padding"],
+                            maxpool=cnn_setup["maxpool"],
+                            pool_size=cnn_setup["pool_size"],
+                            pool_stride=cnn_setup.get("pool_stride",
+                                                    cnn_setup["pool_size"]),
+                            conv_drop=cnn_setup["conv_drop"],
+                            p_conv_drop=cnn_setup["p_conv_drop"],
+                            conv_batch_norm=cnn_setup["conv_batch_norm"],
+                            regularization=regularization,
+                            activation=fc_setup["activation"],
+                            fc_layers=fc_setup["fc_layers"],
+                            add_dropout=fc_setup["fc_drop"],
+                            p_drop=fc_setup["p_drop"],
+                            drop_low=drop_low,
+                            idrop_method=map_rank_method,
+                            p_buckets=p_buckets,
+                            inv_trick=inv_trick,
+                            sigma_drop=sigma_drop,
+                            alpha=alpha,
+                            rk_history=rk_history,
+                            pytorch_dropout=exp_setup["plain_drop"],
+                            prior=exp_setup["prior"],
+                            device=device,
+                            fc_only=fc_only).to(device)
+            else:
+                fc_setup = model_setup["FC"]
+                model = \
+                    CNNFC(input_shape=input_shape,
+                            regularization=regularization,
+                            activation=fc_setup["activation"],
+                            fc_layers=fc_setup["fc_layers"],
+                            add_dropout=fc_setup["fc_drop"],
+                            p_drop=fc_setup["p_drop"],
+                            drop_low=drop_low,
+                            idrop_method=map_rank_method,
+                            p_buckets=p_buckets,
+                            inv_trick=inv_trick,
+                            sigma_drop=sigma_drop,
+                            alpha=alpha,
+                            rk_history=rk_history,
+                            pytorch_dropout=exp_setup["plain_drop"],
+                            prior=exp_setup["prior"],
+                            device=device,
+                            fc_only=fc_only).to(device)
+
 
             if importance:
                 layer_list = []
@@ -244,24 +268,29 @@ if __name__ == '__main__':
                 print(tag)
         else:
             print("--------------- fine tuning VGG -------------------")
+            old_model = vgg11(pretrained=True)
+
             model = vgg11(pretrained=True,
                           requires_grad=exp_setup["requires_grad"],
                           grad_module=exp_setup["grad_module"],
                           new_arch=model_setup)
 
-            if experiment_setup["criterion"] == "NLL":
+            if exp_setup["criterion"] == "NLL":
                 criterion = nn.NLLLoss()
-            elif experiment_setup["criterion"] == "CE":
+            elif exp_setup["criterion"] == "CE":
                 criterion = nn.CrossEntropyLoss()
             else:
                 raise NotImplementedError("Not a valid loss function")
-            print(f"criterion is {experiment_setup['criterion']}")
+            print(f"criterion is {exp_setup['criterion']}")
             
-            model = model.to(device)
+            old_model = old_model.to(device)
             test_loss, test_acc, _, test_loss_list =\
-                test(model, test_loader, criterion, device=device)
-            
+                test(old_model, test_loader, criterion, device=device)
+
             print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
+            
+            # remove from gpu
+            old_model.to("cpu")
 
             model = model.to("cpu")
 
@@ -300,6 +329,9 @@ if __name__ == '__main__':
         #     print(value)
 
         print(model)
+
+        # for k in model.classifier:
+        #     import pdb; pdb.set_trace()
         # training
         run_id = os.path.join(checkpoint_path, experiment_id + str(i)) 
         train_summary = run_training(model,

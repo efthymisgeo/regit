@@ -1,0 +1,10 @@
+{
+    "CNN2D": {},
+    "FC":
+    {
+        "fc_layers": [1024, 1024, 10],
+        "activation": "relu",
+        "fc_drop": false,
+        "p_drop": 0.5
+    }
+}

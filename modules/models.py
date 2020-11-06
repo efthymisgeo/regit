@@ -932,6 +932,8 @@ class CNNFC(nn.Module):
         pytorch_dropout (bool):
         prior (float):
         device (str): cpu or gpu usage
+        fc_only (bool): flag which indicates whether to use only dense layers
+            default value is False
     """
 
     def __init__(self,
@@ -954,7 +956,8 @@ class CNNFC(nn.Module):
                  p_buckets=[0.25, 0.75],
                  pytorch_dropout=False,
                  prior=0.5,
-                 device="cpu"):
+                 device="cpu",
+                 fc_only=False):
         super(CNNFC, self).__init__()
         
         # load cnn parameters
@@ -978,9 +981,13 @@ class CNNFC(nn.Module):
         self.n_fc_layers = len(fc_layers)
 
         # construct modules
+        self.fc_only = fc_only
         self.device = device
-        self.conv, self.conv_out = self._make_conv()
-        self.fc_input_size = int(np.prod(self.conv_out)) # channels x height x width
+        if not self.fc_only:
+            self.conv, self.conv_out = self._make_conv()
+            self.fc_input_size = int(np.prod(self.conv_out)) # channels x height x width
+        else:
+            self.fc_input_size = int(np.prod(self.input_shape))
         self.fc = self._make_fc()
 
         #idrop layers
@@ -1117,8 +1124,13 @@ class CNNFC(nn.Module):
     def forward(self, x, rankings=None):
         if len(x.shape) != 4:
             x = x.view(x.shape[0], 1, self.input_shape[0], self.input_shape[1])
-        # BxCxHxW
-        out = self.conv(x)
+        
+        if not self.fc_only:
+            # BxCxHxW
+            out = self.conv(x)
+        else:
+            out = x
+        
         # BxD
         out = out.view(-1, self.fc_input_size)
         

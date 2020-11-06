@@ -513,6 +513,8 @@ class IMAGE_NET:
         
         
         self.val_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(mean=self.norm_mean,
                                  std=self.norm_std),

@@ -1,7 +1,7 @@
 {
     "FC":
     {
-        "fc_layers": [25088, 4096, 4096, 1000],
+        "fc_layers": [25088, 4096, 4096, 10],
         "activation": "relu",
         "algorithm": "dropout",
         "p_bucket": [0.5, 0.5]

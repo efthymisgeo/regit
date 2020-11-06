@@ -86,9 +86,13 @@ class VGG(nn.Module):
                 elif params["algorithm"] == "idrop":
                     fc.append(ConDropout(cont_pdf=params["method"],
                                          p_buckets=params["p_bucket"],
+                                         n_buckets=params.get("n_buckets", 2),
                                          inv_trick=params["inv_trick"],
-                                         betta=params["betta"],
-                                         rk_history=params["rk_history"]))
+                                         alpha=params["alpha"],
+                                         drop_low=params["drop_low"],
+                                         rk_history=params["rk_history"],
+                                         prior=params["prior"],
+                                         sigma_drop=params["sigma_drop"]))
                 elif params["algorithm"] == "plain":
                     pass
                 else:
