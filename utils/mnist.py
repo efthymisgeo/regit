@@ -407,6 +407,99 @@ class STL10:
         return train_loader, valid_loader
 
 
+class SVHN:
+    def __init__(self, data_setup, exp_setup):
+        self.seed = data_setup["seed"]
+        self.batch_size = exp_setup["batch_size"]
+        self.test_batch_size = exp_setup["test_batch_size"]
+        self.val_size = exp_setup["valid_size"]
+        self.kwargs = exp_setup["kwargs"]
+        # self.norm_mean = data_setup["normalization"][0]
+        # self.norm_std = data_setup["normalization"][1]
+        self.augmentation =  False
+        
+        
+        self.val_transform = transforms.Compose([
+            transforms.Scale(32),
+            transforms.CenterCrop(32),
+            transforms.ToTensor()
+            ])
+            # transforms.Normalize(mean=self.norm_mean,
+            #                      std=self.norm_std),
+            # ])
+        
+        self.train_transform = self.val_transform
+        
+        self.data_dir = \
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                ,"data/" + 'SVHN')
+        
+        self.train_loader, self.val_loader = self.get_train_val_loaders()
+
+        self.test_loader = self.get_test_loader()
+
+    def get_train_loader(self):
+        # no validations set split
+        train_loader = \
+            torch.utils.data.DataLoader(
+                datasets.SVHN(self.data_dir,
+                              split="train",
+                              download=True,
+                              transform=self.train_transform), 
+                batch_size=self.batch_size,
+                **self.kwargs)
+        return train_loader
+
+    def get_test_loader(self):
+        return torch.utils.data.DataLoader(
+                    datasets.SVHN(self.data_dir,
+                                  split="test",
+                                  download=True,
+                                  transform=self.val_transform),
+                    batch_size=self.test_batch_size, shuffle=False,
+                    **self.kwargs) 
+
+    def get_train_val_loaders(self):
+        # TODO fix this
+        error_msg = "[!] valid_size should be in the range [0, 1]."
+        assert ((self.val_size >= 0) and (self.val_size <= 1)), error_msg
+        
+        # load the dataset
+        train_dataset = datasets.SVHN(root=self.data_dir,
+                                       split="train",
+                                       download=True,
+                                       transform=self.train_transform)
+
+        valid_dataset = datasets.SVHN(root=self.data_dir,
+                                       split="train",
+                                       download=True,
+                                       transform=self.val_transform)
+
+        # random split
+        # TODO add function
+        n_train_samples = len(train_dataset)
+        indices = list(range(n_train_samples))
+        split = int(np.floor(self.val_size * n_train_samples))
+        split = n_train_samples - split
+        np.random.seed(self.seed)
+        np.random.shuffle(indices)
+        train_idx, valid_idx = indices[:split], indices[split:]
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
+
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                   batch_size=self.batch_size,
+                                                   sampler=train_sampler,
+                                                   **self.kwargs)
+        valid_loader = torch.utils.data.DataLoader(valid_dataset,
+                                                   batch_size=self.batch_size,
+                                                   sampler=valid_sampler,
+                                                   **self.kwargs)
+
+        return train_loader, valid_loader
+
+
 class IMAGE_NET:
     def __init__(self, data_setup, exp_setup):
         self.seed = data_setup["seed"]
@@ -439,7 +532,7 @@ class IMAGE_NET:
         self.data_dir = \
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                ,"data/" + 'imagenet')
+                ,"/data/scratch/" + 'efthygeo')
         
         self.train_loader, self.val_loader = self.get_train_val_loaders()
 
@@ -468,7 +561,7 @@ class IMAGE_NET:
         error_msg = "[!] valid_size should be in the range [0, 1]."
         assert ((self.val_size >= 0) and (self.val_size <= 1)), error_msg
         
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         # load the dataset
         train_dataset = datasets.ImageNet(root=self.data_dir,
                                           split="train",

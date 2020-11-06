@@ -1,0 +1,13 @@
+{
+    "FC":
+    {
+        "fc_layers": [512, 512, 512, 10],
+        "activation": "relu",
+        "algorithm": "idrop",
+        "p_bucket": [0.9, 0.1],
+        "method": "bucket",
+        "inv_trick": "exp-average",
+        "rk_history": "long",
+        "betta": 0.99999
+    }
+}

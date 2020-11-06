@@ -18,6 +18,6 @@
         "fc_layers": [2048, 2048, 10],
         "activation": "relu",
         "fc_drop": false,
-        "p_drop": 0.5
+        "p_drop": 0.0
     }
 }

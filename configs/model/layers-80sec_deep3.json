@@ -14,9 +14,9 @@
     },
     "FC":
     {
-        "fc_layers": [512, 256, 256, 128, 10],
+        "fc_layers": [4086, 4086, 4086, 10],
         "activation": "relu",
         "fc_drop": false,
-        "p_drop": 0.5
+        "p_drop": 0.0
     }
 }

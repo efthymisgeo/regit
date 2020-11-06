@@ -35,17 +35,17 @@ model_urls = {
 
 class VGG(nn.Module):
 
-    def __init__(self, features, num_classes=1000, init_weights=True):
+    def __init__(self, features, num_classes=1000, init_weights=True, p_drop=0.5):
         super(VGG, self).__init__()
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
             nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
-            nn.Dropout(),
+            nn.Dropout(p=p_drop),
             nn.Linear(4096, 4096),
             nn.ReLU(True),
-            nn.Dropout(),
+            nn.Dropout(p=p_drop),
             nn.Linear(4096, num_classes),
         )
         if init_weights:
@@ -99,7 +99,8 @@ class VGG(nn.Module):
         if reinit:
             self._initialize_weights(modules="classifier")
         
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) 
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7)) 
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) 
         
         
     def forward(self, x, rankings=None):

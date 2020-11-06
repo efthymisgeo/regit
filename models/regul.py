@@ -8,15 +8,17 @@ import pandas as pd
 import seaborn as sns
 import torch.nn as nn
 import torch.optim as optim
+from torchvision.utils import save_image
 import torchvision.models as torch_models
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 from modules.vgg import *
 from modules.models import CNN2D, CNNFC
 from utils.model_utils import train, test, validate, EarlyStopping
-from utils.mnist import MNIST, CIFAR10, CIFAR100, IMAGE_NET, STL10
+from utils.mnist import MNIST, CIFAR10, CIFAR100, IMAGE_NET, STL10, SVHN, IMAGE_NET
 from utils.config_loader import print_config
 from utils.opts import load_experiment_options
+import matplotlib.pyplot as plt
 from models.end2end import run_training
 from captum.attr import LayerConductance
 from utils.importance import Importance, Attributor
@@ -112,11 +114,21 @@ if __name__ == '__main__':
         data = IMAGE_NET(data_setup, exp_setup)
     elif data_setup["name"] == "STL10":
         data = STL10(data_setup, exp_setup)
+    elif data_setup["name"] == "SVHN":
+        data = SVHN(data_setup, exp_setup)
     else:
         raise NotImplementedError("Not a valid dataset")
     train_loader, val_loader = data.get_train_val_loaders()
     test_loader = data.get_test_loader()
     print_config(data_setup)
+
+    # for k, _ in train_loader:
+    #     k_new = k[0,:,:,:]
+    #     save_image(k_new, "k_new.png")
+    #     import pdb; pdb.set_trace()
+
+
+
 
     # experimental setup parameters
     print("==================Experimental Parameters=========================")
@@ -171,9 +183,11 @@ if __name__ == '__main__':
         elif data_setup["name"] == "CIFAR100": 
             data = CIFAR100(data_setup, exp_setup)
         elif data_setup["name"] == "ImageNet":
-            data = ImageNet(data_setup, exp_setup)
+            data = IMAGE_NET(data_setup, exp_setup)
         elif data_setup["name"] == "STL10":
             data = STL10(data_setup, exp_setup)
+        elif data_setup["name"] == "SVHN":
+            data = SVHN(data_setup, exp_setup)
         else:
             raise NotImplementedError("Not a valid dataset")
         train_loader, val_loader = data.get_train_val_loaders()

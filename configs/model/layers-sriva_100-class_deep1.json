@@ -1,10 +1,11 @@
 {
     "CNN2D":
     {
-        "kernels": [32, 32, 64],
+        "kernels": [96, 128, 256],
         "kernel_size": [5, 5, 5],
         "maxpool": [true, true, true],
-        "pool_size": [2, 2],
+        "pool_size": [3, 3],
+        "pool_stride": [2, 2],
         "padding": [2, 2, 2],
         "stride": [1, 1, 1],
         "conv_drop": [false, false, false],
@@ -14,9 +15,9 @@
     },
     "FC":
     {
-        "fc_layers": [4096, 4096, 4096, 4096, 10],
+        "fc_layers": [1024, 1024, 100],
         "activation": "relu",
         "fc_drop": false,
-        "p_drop": 0.5
+        "p_drop": 0.0
     }
 }
