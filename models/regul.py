@@ -268,7 +268,7 @@ if __name__ == '__main__':
                 print(tag)
         else:
             print("--------------- fine tuning VGG -------------------")
-            old_model = vgg11(pretrained=True)
+            # old_model = vgg11(pretrained=True)
 
             model = vgg11(pretrained=True,
                           requires_grad=exp_setup["requires_grad"],
@@ -283,15 +283,15 @@ if __name__ == '__main__':
                 raise NotImplementedError("Not a valid loss function")
             print(f"criterion is {exp_setup['criterion']}")
             
-            old_model = old_model.to(device)
-            test_loss, test_acc, _, test_loss_list =\
-                test(old_model, test_loader, criterion, device=device)
+            # old_model = old_model.to(device)
+            # test_loss, test_acc, _, test_loss_list =\
+            #     test(old_model, test_loader, criterion, device=device)
 
-            print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
+            # print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
             
             # remove from gpu
-            del old_model
-            torch.cuda.empty_cache()
+            # del old_model
+            # torch.cuda.empty_cache()
 
             #model = model.to("cpu")
 

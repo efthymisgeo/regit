@@ -197,13 +197,15 @@ def run_training(model,
         respect_attr=False
     else:
         sample_batch = attribute_setup.get("sample_batch", None)
-        n_steps = attribute_setup.get("n_steps", 10)
+        n_steps = attribute_setup.get("n_steps", 5)
         sigma_attr = attribute_setup.get("sigma_attr", None)
         sigma_input = attribute_setup.get("sigma_input", None)
         momentum = attribute_setup.get("momentum", None)
         adapt_to_tensor = attribute_setup.get("adapt_to_tensor", False)
         per_sample_noise = attribute_setup.get("per_sample_noise", False)
         respect_attr = attribute_setup.get("respect_attr", False)
+        print(attribute_setup)
+
 
     top_percentile = dict.fromkeys(range(0, 64), 0)
     bottom_percentile = dict.fromkeys(range(0, 64), 0)
