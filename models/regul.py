@@ -290,9 +290,10 @@ if __name__ == '__main__':
             print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
             
             # remove from gpu
-            old_model.to("cpu")
+            del old_model
+            torch.cuda.empty_cache()
 
-            model = model.to("cpu")
+            #model = model.to("cpu")
 
             if importance:
                 layer_list = []

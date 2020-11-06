@@ -10,7 +10,7 @@
     "requires_grad": true,
     "grad_module": "features",
     "regularization": true,
-    "importance": false,
+    "importance": true,
     "aggregate": true,
     "idrop":{
         "method": "bucket",

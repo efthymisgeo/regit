@@ -1130,7 +1130,9 @@ def test(model, test_loader, criterion, device='cpu'):
     batch_loss = []
     misclassified_batch = []
     with torch.no_grad():
-        for data, target in test_loader:
+        for _, (data, target) in tqdm(enumerate(test_loader),
+                                      total=len(test_loader)):
+        #for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             #_, output = model(data)
             output = model(data)
