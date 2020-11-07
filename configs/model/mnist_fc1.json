@@ -4,7 +4,7 @@
     {
         "fc_layers": [1024, 1024, 10],
         "activation": "relu",
-        "fc_drop": false,
+        "fc_drop": true,
         "p_drop": 0.5
     }
 }

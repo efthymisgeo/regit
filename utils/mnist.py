@@ -590,7 +590,8 @@ class IMAGE_NET:
         train_loader = torch.utils.data.DataLoader(train_dataset,
                                                    batch_size=self.batch_size,
                                                    sampler=train_sampler,
-                                                   **self.kwargs)
+                                                   **self.kwargs,
+                                                   drop_last=True)
         valid_loader = torch.utils.data.DataLoader(valid_dataset,
                                                    batch_size=self.batch_size,
                                                    sampler=valid_sampler,

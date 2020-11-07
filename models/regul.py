@@ -275,6 +275,10 @@ if __name__ == '__main__':
                           grad_module=exp_setup["grad_module"],
                           new_arch=model_setup)
 
+            # import pdb; pdb.set_trace()
+
+            print(model)
+
             if exp_setup["criterion"] == "NLL":
                 criterion = nn.NLLLoss()
             elif exp_setup["criterion"] == "CE":
@@ -283,11 +287,13 @@ if __name__ == '__main__':
                 raise NotImplementedError("Not a valid loss function")
             print(f"criterion is {exp_setup['criterion']}")
             
-            # old_model = old_model.to(device)
+            # model.to(device)
             # test_loss, test_acc, _, test_loss_list =\
-            #     test(old_model, test_loader, criterion, device=device)
+            #     test(model, test_loader, criterion, device=device)
 
             # print(f"The accuracy of VGG on {data_setup['name']} is {test_acc} and loss is {test_loss}")
+            
+            # import pdb; pdb.set_trace()
             
             # remove from gpu
             # del old_model

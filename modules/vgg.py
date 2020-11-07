@@ -55,30 +55,40 @@ class VGG(nn.Module):
         """Sets the gradients of a layer/module/model to the argument flag
         Args:
             requires_grad (bool): the flag which handles the gradient pass
+            # TODO remove module functionality
             module (str): available choices are "all" and "features"
         """
         for param in self.features.parameters():
             param.requires_grad = requires_grad
-        if module == "all":
-            for param in self.classifier.parameters():
-                param.requires_grad = requires_grad 
+        for param in self.classifier.parameters():
+            param.requires_grad = requires_grad 
 
-    def _reset_clf(self, clf_params, reinit=True, avgpool=True):
+    def _reset_clf(self, model, clf_params, reinit=False, avgpool=True):
         """construct a vgg classifier
         Args:
-            # old_params (torch.nn.Sequential): the module which consists of the
-            #    pre-trained model parameters
+            model (torch.nn.Module): the module which consists of the
+                pre-trained model parameters
             clf_params (dict): a dict which has all the necessary classifier info
             reinit (bool): handles reinitializing opiton. can be false only when
                 resuming training in the same dataset (ImageNet)
         """
+        # get params for the new model
         params = clf_params["FC"]
         fc_list = params["fc_layers"]
         p_bucket = params["p_bucket"] 
         fc = []
+        # load pretrained classifier
+        pretrained_classifier = model.classifier
+        pre_fc_list = []
+        for k in model.classifier:
+            if isinstance(k, nn.Linear):
+                pre_fc_list.append(k)
         # append linear layers
         for i_fc in range(0, len(fc_list)-2):
-            fc.append(nn.Linear(fc_list[i_fc], fc_list[i_fc+1]))
+            if reinit:
+                fc.append(nn.Linear(fc_list[i_fc], fc_list[i_fc+1]))
+            else:
+                fc.append(pre_fc_list[i_fc])
             fc.append(nn.ReLU(True))
             if p_bucket != 0.0:
                 if params["algorithm"] == "dropout":
@@ -98,7 +108,10 @@ class VGG(nn.Module):
                 else:
                     raise NotImplementedError("Not a valid regularization" 
                         "algorithm. You should check your model conf file.")
-        fc.append(nn.Linear(fc_list[-2], fc_list[-1]))
+        if reinit:
+            fc.append(nn.Linear(fc_list[-2], fc_list[-1]))
+        else:
+            fc.append(pre_fc_list[-1])
         self.classifier = nn.Sequential(*fc)
         if reinit:
             self._initialize_weights(modules="classifier")
@@ -193,7 +206,8 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress,
         model._set_requires_grad(requires_grad=requires_grad,
                                  module=grad_module)
     if new_arch != {}:
-        model._reset_clf(new_arch, reinit=True)
+        model._reset_clf(model, new_arch, reinit=False)
+
     return model
 
 
