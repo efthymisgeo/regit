@@ -8,7 +8,7 @@
         "method": "bucket",
         "inv_trick": "exp-average",
         "rk_history": "short",
-        "alpha": 1e-6,
+        "alpha": 0.95,
         "drop_low": false,
         "schedule": "step",
         "sigma_drop": [0.05, 0.05],

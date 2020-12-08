@@ -534,7 +534,7 @@ class IMAGE_NET:
         self.data_dir = \
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                ,"/data/scratch/" + 'efthygeo')
+                ,"/data/scratch/efthygeo/" + 'efthygeo')
         
         self.train_loader, self.val_loader = self.get_train_val_loaders()
 

@@ -66,7 +66,7 @@ def run_training(model,
             optim.lr_scheduler.StepLR(optimizer,
                                       step_size=optim_setup["step_size"],
                                       gamma=optim_setup["gamma"])
-                                    
+
 
     if experiment_setup["idrop"] != {}:
         map_rank_method = experiment_setup["idrop"].get("method", "bucket")

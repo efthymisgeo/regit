@@ -86,6 +86,7 @@ if __name__ == '__main__':
     data_setup = exp_config["data_opt"]
 
     model_name = exp_setup["model_name"]
+    
     # this folder will contain all of the saved models for all runs of this experiment
     checkpoint_path = os.path.join(exp_setup["checkpoint_folder"],
                                    data_setup["name"],

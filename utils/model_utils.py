@@ -845,7 +845,10 @@ def new_train(model,
         rankings = None
         #import pdb; pdb.set_trace()
         if skip_ranks is False:
-            #import pdb; pdb.set_trace()
+            # print(data.shape)
+            # print(target.shape)
+            # print(model)
+            # import pdb; pdb.set_trace()
             dl = data.clone()
             rankings, statistics, total_conductance, per_class_cond = \
                 attributor.get_attributions(data,
@@ -1132,6 +1135,7 @@ def test(model, test_loader, criterion, device='cpu'):
     with torch.no_grad():
         for _, (data, target) in tqdm(enumerate(test_loader),
                                       total=len(test_loader)):
+            # print(data.shape)
         #for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             #_, output = model(data)
