@@ -80,6 +80,8 @@ def make_vgg_clf(old_params, clf_params, reinit=True):
     return nn.Sequential(*fc)
 
 if __name__ == '__main__':
+    debug = False
+
     exp_config = load_experiment_options()
     model_setup = exp_config["model_opt"]
     exp_setup = exp_config["exp_opt"]
@@ -119,7 +121,7 @@ if __name__ == '__main__':
         data = SVHN(data_setup, exp_setup)
     else:
         raise NotImplementedError("Not a valid dataset")
-    train_loader, val_loader = data.get_train_val_loaders()
+    train_loader, val_loader = data.get_train_val_loaders(debug=debug)
     test_loader = data.get_test_loader()
     print_config(data_setup)
 
@@ -192,7 +194,7 @@ if __name__ == '__main__':
             data = SVHN(data_setup, exp_setup)
         else:
             raise NotImplementedError("Not a valid dataset")
-        train_loader, val_loader = data.get_train_val_loaders()
+        train_loader, val_loader = data.get_train_val_loaders(debug=debug)
         test_loader = data.get_test_loader()
         print_config(data_setup)
         
