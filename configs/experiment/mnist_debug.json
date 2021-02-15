@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_MNIST_FC1_Ydrop-1e-2-K-2_lr-0.01_5runs",
+    "experiment_id": "_mnist_debug_Ydrop-1e-2-K-1_lr-0.01_5runs",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -16,18 +16,18 @@
         "inv_trick": "exp-average",
         "rk_history": "short",
         "alpha": 1e-2,
-        "p_buckets": [0.25, 0.75],
+        "p_buckets": [0.05, 0.15],
         "schedule": "step",
         "drop_low": false,
         "sigma_drop": [0.05, 0.05]
     },
     "reset_prior_epoch": -1,
-    "prior": 0.35,
+    "prior": 0.1,
     "reseted_beta": 1.0,
     "use_drop_schedule": {
         "prob_scheduler": "Step",
-        "peak_epoch": 2,
-        "p_drop": [0.5, 0.25]
+        "peak_epoch": 1,
+        "p_drop": [0.1, 0.05]
     },
     "mixout": false,
     "enable_writer": false,
@@ -36,7 +36,7 @@
     "batch_size": 64,
     "test_batch_size": 64,
     "valid_size": 0.10,
-    "patience": 10,
+    "patience": 7,
     "epochs": 500,
     "weught_decay": 0.0,
     "optimization":

@@ -76,7 +76,7 @@ class MNIST:
                     batch_size=self.test_batch_size, shuffle=False,
                     **self.kwargs) 
 
-    def get_train_val_loaders(self):
+    def get_train_val_loaders(self, debug=False):
         # TODO fix this
         error_msg = "[!] valid_size should be in the range [0, 1]."
         assert ((self.val_size >= 0) and (self.val_size <= 1)), error_msg
@@ -94,7 +94,10 @@ class MNIST:
 
         # random split
         # TODO add function
+
         n_train_samples = len(train_dataset)
+        if debug:
+            n_train_samples = 100
         indices = list(range(n_train_samples))
         split = int(np.floor(self.val_size * n_train_samples))
         split = n_train_samples - split

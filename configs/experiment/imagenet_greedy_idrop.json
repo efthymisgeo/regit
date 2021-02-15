@@ -1,6 +1,6 @@
 {
     "model_name": "CNNFC",
-    "experiment_id": "_IMAGENET-ft-VGG-idrop-1e-6-sch-0_lr-0.01_1run",
+    "experiment_id": "_IMAGENET-ft-VGG-ydrop-0.05-0.95-sch-0_lr-1e-7_1run",
     "imp_sampling": 1,
     "checkpoint_folder": "checkpoints",
     "experiment_folder": "experiments",
@@ -16,7 +16,7 @@
         "method": "bucket",
         "inv_trick": "exp-average",
         "rk_history": "short",
-        "alpha": 1e-6,
+        "alpha": 0.95,
         "p_buckets": [0.25, 0.75],
         "schedule": "step",
         "drop_low": false,
@@ -40,7 +40,7 @@
     "optimization":
     {
         "optimizer": "SGD",
-        "lr": 0.01,
+        "lr": 1e-7,
         "momentum": 0.9,
         "weight_decay": 0.0,
         "scheduling": false,
@@ -48,7 +48,7 @@
         "gamma": 0.1
     },
     "use_cuda": true,
-    "cuda_device": "cuda:1",
+    "cuda_device": "cuda:2",
     "save_model": true,
     "plain_drop": false,
     "p_drop": 0.5,

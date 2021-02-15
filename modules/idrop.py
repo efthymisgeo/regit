@@ -356,6 +356,8 @@ class ConDropout(nn.Module):
             prob_masks = \
                 prob_masks.view(-1)[sorted_units_transform].reshape(input.size(0),
                                                                     input.size(1))
+            #print(f"the sorted units are {sorted_units_transform}")
+            #print(f"the induced masks are {prob_masks}")
         else:
             # i-drop case
             #print(ranking.size())
@@ -408,17 +410,20 @@ class ConDropout(nn.Module):
             raise NotImplementedError("not an implemented method")
         
         # sample Be(p_interval)
-        # print(f"Probabilistic Mask is {prob_masks}")
+        #print(f"Probabilistic Mask is {prob_masks}")
         bin_masks = torch.bernoulli(prob_masks)
         #print(f"Bin Mask is {bin_masks}")
-        #import pdb; pdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         # scaling trick
         if self.inv_trick == "dropout":
             masks = torch.div(bin_masks, 1 - self.p_mean)
         elif self.inv_trick == "temporal":
             masks = torch.div(bin_masks, prob_masks)
+            import ipdb; ipdb.set_trace()
+            print(masks)
         elif self.inv_trick == "exp-average":
             masks =  torch.div(bin_masks, self.prob_avg)
+            #print(f"rescaled masks are {masks}")
         else:
             raise NotImplementedError("Invalid inversion rescaling trick")
         return masks
